@@ -1,0 +1,1645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dot Bot</title>
+    <style>
+        :root {
+            --control-panel-width: 440px; /* Wider again */
+            --padding: 10px;
+        }
+        /* --- Basic Styles --- */
+        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; font-size: 14px; background-color: #f0f0f0; overflow: hidden; }
+        .container { display: flex; height: 100%; }
+        #canvas-container { flex-grow: 1; height: 100%; position: relative; background-color: #ddd; overflow: hidden; }
+        #drawingCanvas { display: block; }
+        #control-panel { width: var(--control-panel-width); height: 100%; background-color: #f8f8f8; border-left: 1px solid #ccc; padding: var(--padding); box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; }
+        #control-panel header { text-align: right; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 1px solid #eee; position: sticky; top: 0; background-color: #f8f8f8; z-index: 10; padding-top: var(--padding); margin-left: calc(-1 * var(--padding)); margin-right: calc(-1 * var(--padding)); padding-left: var(--padding); padding-right: var(--padding); }
+        #control-panel h2, #control-panel h3 { margin-top: 15px; margin-bottom: 10px; color: #333; font-size: 1.1em; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        #control-panel h3 { font-size: 1em; margin-top: 10px; margin-bottom: 5px; border-bottom: none; }
+        #control-panel h4 { font-size: 0.95em; margin-top: 15px; margin-bottom: 8px; color: #444; font-weight: bold; }
+        .control-group { margin-bottom: 12px; }
+        .control-group.inline { display: flex; gap: 5px 10px; align-items: center; flex-wrap: wrap; }
+        .control-group.inline label { margin-bottom: 0; flex-shrink: 0; width: auto; min-width: 35px; text-align: right;}
+        .control-group.inline input[type="number"] { width: 60px; }
+        .control-group label { display: block; margin-bottom: 3px; font-weight: bold; font-size: 0.9em; width: auto; text-align: left; }
+        .control-group .label-normal, .control-group .toggle-label { font-weight: normal; width: auto; text-align: left; margin-bottom: 0; display: inline-block;}
+        .control-group input[type="range"], .control-group input[type="number"], .control-group input[type="color"], .control-group select, .control-group button { width: 100%; box-sizing: border-box; margin-top: 2px; }
+        .slider-container { display: flex; align-items: center; gap: 8px; }
+        .slider-container input[type="range"] { flex-grow: 1; }
+        .slider-container input[type="number"] { width: 65px; flex-shrink: 0; text-align: right; }
+        .grid-section { border: 1px solid #ddd; padding: 10px; margin-bottom: 15px; border-radius: 5px; transition: background-color 0.3s ease; }
+        .grid-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .grid-header h3 { margin: 0; border: none; }
+        .grid-actions button { padding: 3px 6px; font-size: 0.8em; cursor: pointer; margin-left: 5px; width: auto; }
+        .color-list { list-style: none; padding: 0; margin: 5px 0 0 0; max-height: 150px; overflow-y: auto; border: 1px solid #eee; padding: 5px;}
+        .color-list li { display: flex; align-items: center; margin-bottom: 4px; gap: 5px; padding: 4px; border: 1px solid transparent; cursor: grab; background-color: #fff; border-radius: 3px; }
+        .color-list input[type="color"] { width: 40px; height: 25px; padding: 0; border: 1px solid #ccc; cursor: pointer; flex-shrink: 0; }
+        .color-list span { font-family: monospace; font-size: 0.9em; flex-grow: 1; margin-left: 5px; }
+        .color-list .color-count-input { width: 55px; font-size: 0.85em; text-align: right; padding: 2px; margin-left: auto; } /* Count input style */
+        .color-list button { padding: 2px 5px; font-size: 1em; line-height: 1; width: auto; background: #eee; border: 1px solid #ccc; cursor: pointer; flex-shrink: 0; margin-left: 2px; }
+        .add-color-btn { width: auto; padding: 3px 8px; margin-top: 5px; }
+        .color-list li.dragging { opacity: 0.5; background-color: #e0e0e0; }
+        .color-list li.drag-over-top { border-top: 2px dashed #007bff; }
+        .color-list li.drag-over-bottom { border-bottom: 2px dashed #007bff; }
+        .animation-controls, .spacing-controls, .color-controls, .line-controls { border-top: 1px solid #eee; margin-top: 15px; padding-top: 10px; } /* Added .line-controls */
+        .animation-toggle-group { margin-bottom: 8px; }
+        .animation-toggle-group label.toggle-label, .control-group label.toggle-label { display: inline-block; margin-right: 10px; font-weight: normal; font-size: 0.9em; width: auto; text-align: left;}
+        .animation-toggle-group input[type="checkbox"], .control-group input[type="checkbox"] { width: auto; margin-right: 4px; vertical-align: middle; cursor: pointer; }
+        .animation-params, .spacing-mode-params, .color-mode-params, .line-mode-params { display: none; padding-left: 20px; margin-top: 5px; margin-bottom: 10px; border-left: 2px solid #eee; } /* Added .line-mode-params */
+        .animation-params.visible, .spacing-mode-params.visible, .color-mode-params.visible, .line-mode-params.visible { display: block; } /* Added .line-mode-params.visible */
+        .animation-params .control-group, .spacing-mode-params .control-group, .color-mode-params .control-group, .line-mode-params .control-group { margin-bottom: 6px; } /* Added .line-mode-params */
+        .animation-params label, .spacing-mode-params label, .color-mode-params label, .line-mode-params label { font-size: 0.85em; font-weight: normal; margin-bottom: 1px; width: auto; text-align: left; } /* Added .line-mode-params */
+        .animation-params input[type="number"], .spacing-mode-params input[type="number"], .color-mode-params input[type="number"], .line-mode-params input[type="number"] { width: 70px; font-size: 0.9em; padding: 3px; } /* Added .line-mode-params */
+        .line-mode-params input[type="color"] { width: 40px; height: 25px; padding: 0; border: 1px solid #ccc; cursor: pointer; vertical-align: middle; } /* Style for line mode color pickers */
+        .line-random-options label { margin-left: 15px; } /* Indent random line options */
+
+        .anim-count-params { /* display: grid; /* <-- REMOVED */ grid-template-columns: auto auto; gap: 5px 15px; align-items: center; }
+        .animation-params.visible.anim-count-params { display: grid; }
+        .anim-count-params label { grid-column: 1; width: auto; text-align: left;} .anim-count-params input { grid-column: 2; } .anim-count-params .time-label { grid-column: 1; margin-top: 5px;} .anim-count-params .time-input { grid-column: 2; margin-top: 5px;}
+        #globalDotCounter, .gridDotCount { font-weight: normal; font-size: 0.9em; color: #555; }
+        #colorBreakdownList { list-style: none; padding: 0; margin: 5px 0 0 10px; font-size: 0.85em; max-height: 100px; overflow-y: auto; }
+        #colorBreakdownList li { margin-bottom: 2px; }
+        #colorBreakdownList span { display: inline-block; width: 18px; height: 12px; margin-right: 5px; border: 1px solid #ccc; vertical-align: middle;}
+        button { padding: 8px 12px; background-color: #e0e0e0; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
+        button:hover { background-color: #d0d0d0; } button:active { background-color: #c0c0c0; }
+        #export-controls, #global-animation-controls, #global-special-animations, #reset-controls { margin-top: 20px; padding-top: 10px; border-top: 1px solid #ccc; }
+        #export-controls button, #global-animation-controls button, #global-special-animations button, #reset-controls button { margin-top: 5px; }
+        #resetButton { background-color: #f2dede; border-color: #ebccd1; color: #a94442; font-weight: bold;}
+        #resetButton:hover { background-color: #ebcccc; }
+        .hidden { display: none !important; }
+        label.disabled, input[type=checkbox]:disabled + label { color: #aaa; cursor: not-allowed; }
+        input[type=checkbox]:disabled { cursor: not-allowed; }
+        .spacing-mode-params select, .color-mode-params select { width: auto; padding: 2px; font-size: 0.9em;}
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="canvas-container"> <canvas id="drawingCanvas"></canvas> </div>
+        <div id="control-panel">
+            <header><strong>Dot Bot</strong></header>
+            <section id="global-controls">
+                <h2>Global</h2>
+                <div class="control-group"> <label for="backgroundColor">Background:</label> <input type="color" id="backgroundColor" value="#ffffff"> </div>
+                <div class="control-group"> <label>Global Dots: <span id="globalDotCounter">0</span></label>
+                 <ul id="colorBreakdownList"></ul>
+                </div>
+            </section>
+             <section id="global-special-animations">
+                <h2>Global Special Animations</h2>
+                 <div class="animation-toggle-group">
+                    <input type="checkbox" id="globalAnimRandomAppearToggle" data-special-anim-toggle="globalRandomAppear"><label for="globalAnimRandomAppearToggle" class="toggle-label"> Random Appear</label>
+                    <div class="animation-params" id="globalRandomAppearParams">
+                         <div class="control-group inline"><label for="globalRandomAppearDuration">Duration (s):</label><input type="number" id="globalRandomAppearDuration" min="0.01" step="0.01" value="1.0"></div>
+                    </div>
+                </div>
+                <div class="animation-toggle-group">
+                     <input type="checkbox" id="globalAnimExplodeToggle" data-special-anim-toggle="globalExplode"><label for="globalAnimExplodeToggle" class="toggle-label"> Explode</label>
+                     <div class="animation-params" id="globalExplodeParams">
+                         <div class="control-group inline"><label for="globalExplodeSpeed">Explode Spd:</label><input type="number" id="globalExplodeSpeed" min="0.1" step="0.1" value="1.0"></div>
+                         <div class="control-group inline"><label for="globalExplodeReturnSpeed">Return Spd:</label><input type="number" id="globalExplodeReturnSpeed" min="0.1" step="0.1" value="1.0"></div>
+                    </div>
+                </div>
+                <div class="animation-toggle-group"> <!-- NEW Implode Controls -->
+                    <input type="checkbox" id="globalAnimImplodeToggle" data-special-anim-toggle="globalImplode"><label for="globalAnimImplodeToggle" class="toggle-label"> Implode</label>
+                    <div class="animation-params" id="globalImplodeParams">
+                        <div class="control-group inline"><label for="globalImplodeDuration">Implode (s):</label><input type="number" id="globalImplodeDuration" min="0.1" step="0.1" value="1.5"></div>
+                        <div class="control-group inline"><label for="globalImplodeReverseDuration">Reverse (s):</label><input type="number" id="globalImplodeReverseDuration" min="0.1" step="0.1" value="1.5"></div>
+                   </div>
+               </div>
+             </section>
+            <section id="grid-controls-container">
+                <h2>Grids</h2>
+                <!-- Grid sections -->
+            </section>
+            <section id="export-controls">
+                <h2>Export</h2>
+                <div class="control-group"> <button id="exportSvg">Export SVG</button> </div>
+                <div class="control-group"> <button id="exportJpg">Export JPG (6000px wide)</button> </div>
+            </section>
+            <section id="global-animation-controls">
+                <h2>Global Animation Control</h2>
+                <div class="control-group"> <button id="globalPauseButton">Pause All Animations</button> </div>
+            </section>
+             <section id="reset-controls">
+                 <h2>Reset</h2>
+                 <div class="control-group"> <button id="resetButton">Reset Program</button> </div>
+             </section>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const canvas=document.getElementById('drawingCanvas'); const ctx=canvas.getContext('2d');
+        const canvasContainer=document.getElementById('canvas-container'); const controlPanel=document.getElementById('control-panel');
+        const gridControlsContainer=document.getElementById('grid-controls-container');
+        const globalDotCounterEl=document.getElementById('globalDotCounter'); const colorBreakdownListEl=document.getElementById('colorBreakdownList'); const backgroundColorPicker=document.getElementById('backgroundColor');
+        const exportSvgButton=document.getElementById('exportSvg'); const exportJpgButton=document.getElementById('exportJpg');
+        const globalPauseButton=document.getElementById('globalPauseButton'); const resetButton=document.getElementById('resetButton');
+        const globalRandomAppearToggle=document.getElementById('globalAnimRandomAppearToggle');
+        const globalRandomAppearParamsEl=document.getElementById('globalRandomAppearParams');
+        const globalRandomAppearDurationInput=document.getElementById('globalRandomAppearDuration');
+        const globalExplodeToggle=document.getElementById('globalAnimExplodeToggle');
+        const globalExplodeParamsEl=document.getElementById('globalExplodeParams');
+        const globalExplodeSpeedInput=document.getElementById('globalExplodeSpeed');
+        const globalExplodeReturnSpeedInput=document.getElementById('globalExplodeReturnSpeed');
+        const globalImplodeToggle=document.getElementById('globalAnimImplodeToggle'); // NEW
+        const globalImplodeParamsEl=document.getElementById('globalImplodeParams'); // NEW
+        const globalImplodeDurationInput=document.getElementById('globalImplodeDuration'); // NEW
+        const globalImplodeReverseDurationInput=document.getElementById('globalImplodeReverseDuration'); // NEW
+
+        // --- State Variables ---
+        let grids=[]; let isAnimatingGlobal=false; let isGloballyPaused=false;
+        let animationFrameId=null; let lastTimestamp=0; let globalBackgroundColor='#ffffff';
+        let nextGridId=1; let nextAltColorId=0; let centerX=0; let centerY=0; let draggedColorId=null;
+        let globalRandomAppearActive=false; let globalRandomAppearDuration=1.0; let globalRandomAppearStartTime=0; let globalRandomAppearDotPool=[]; let globalRandomAppearVisibleCount=0;
+        let globalExplodeActive=false; let globalExplodePhase='idle'; let globalExplodeData=[];
+        let globalExplodeStartTime=0; let globalExplodeHoldStartTime=0; let globalExplodeReverseStartTime=0;
+        let globalExplodeSpeedMultiplier=1.0; let globalExplodeReturnSpeedMultiplier=1.0;
+        const EXPLODE_BASE_DURATION=1.5; const EXPLODE_HOLD_DURATION=2.0; const EXPLODE_REVERSE_BASE_DURATION=1.5;
+        let globalImplodeActive=false; let globalImplodePhase='idle'; let globalImplodeData=[]; let globalImplodeLineData=[]; // NEW Implode State
+        let globalImplodeStartTime=0; let globalImplodeReverseStartTime=0; // NEW
+        let globalImplodeDuration=1.5; let globalImplodeReverseDuration=1.5; // NEW
+        const IMPLODE_DISTANCE_THRESHOLD_SQ = 4; // How close (squared) to center counts as "arrived"
+
+        let globalColorCounts={}; // Modified later to include line counts
+
+        function generateGridBackgroundColor(gridId){const h=(gridId*40)%360;return`hsl(${h},75%,92%)`;}
+
+        // --- Grid Default State ---
+        function getDefaultGridState() {
+            const id = nextGridId++;
+            const defaultState = {
+                id: id, name: `Grid #${id}`, dotsCountX: 20, dotsCountY: 20,
+                dotSize: 5, dotSpacing: 20, dotOffset: 0, rotation: 0, color: '#000000', opacity: 1.0,
+                alternatingColors: [], alternatingType: 'none', dotCount: 0,
+                // --- Spacing Modes ---
+                useGradientSpacing: false, spacingX1: 10, spacingX2: 20, spacingX3: 30, spacingY1: 10, spacingY2: 20, spacingY3: 30,
+                useRandomSpacing: false, randomSpacingLower: 0.8, randomSpacingUpper: 1.2,
+                useZigZagSpacing: false, zigZagAxis: 'X', zigZagAmount: 5,
+                useAltScaleSpacing: false, altScaleAxis: 'X', altScaleA: 15, altScaleB: 25,
+                useWaveSpacing: false, waveAxis: 'Y', waveDirectionAxis: 'X', waveAmplitude: 10, waveFrequency: 0.1, wavePhase: 0,
+                // --- Color Modes ---
+                radialScale: 50, shuffledColorPool: [],
+                // --- Line Settings --- // NEW SECTION
+                useLines: false,
+                lineDiagonalSettings: { enabled: false, width: 1, color: '#888888', useGridAltColors: false },
+                lineColumnsSettings: { enabled: false, width: 1, color: '#888888', useGridAltColors: false },
+                lineRowsSettings: { enabled: false, width: 1, color: '#888888', useGridAltColors: false },
+                lineSnakeSettings: { enabled: false, width: 1, color: '#888888', useGridAltColors: false },
+                lineRandomSettings: {
+                    enabled: false, width: 1, color: '#888888', useGridAltColors: false,
+                    count: 50, allowDiagonal: true, allowColumns: true, allowRows: true
+                },
+                // --- Standard Animation ---
+                isAnimating: false, animRotation: false, animSpacing: false, animSize: false, animOffset: false, animCount: false,
+                animRotationParams: { speed: 30 }, animSpacingParams: { lower: 10, upper: 30, time: 2 },
+                animSizeParams: { lower: 2, upper: 10, time: 1.5 }, animOffsetParams: { lower: -50, upper: 50, time: 3 },
+                animCountParams: { lowerX: 10, upperX: 30, lowerY: 10, upperY: 30, time: 4 },
+                // --- Current Values ---
+                currentRotation: 0, currentDotSize: 5, currentDotSpacing: 20, currentDotOffset: 0,
+                currentDotsCountX: 20, currentDotsCountY: 20,
+            };
+            // Initialize current values from base
+            defaultState.currentRotation=defaultState.rotation; defaultState.currentDotSize=defaultState.dotSize; defaultState.currentDotSpacing=defaultState.dotSpacing; defaultState.currentDotOffset=defaultState.dotOffset; defaultState.currentDotsCountX=defaultState.dotsCountX; defaultState.currentDotsCountY=defaultState.dotsCountY;
+            return defaultState;
+        }
+
+        // --- Initialization & Canvas ---
+        function init() { setupEventListeners(); addGrid(); resizeCanvas(); requestAnimationFrame(animationLoop); }
+        function resizeCanvas() { const r=canvasContainer.getBoundingClientRect(); canvas.width=r.width; canvas.height=r.height; centerX=r.width/2; centerY=r.height/2; draw(); }
+        function draw() {
+            ctx.fillStyle = globalBackgroundColor; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            let totalDots = 0; let anyGridWantsAnimating = false; globalColorCounts = {}; // Reset global counts
+
+            if (globalExplodeActive) { drawGlobalExplosion(ctx, 1); totalDots = globalExplodeData.length; anyGridWantsAnimating = true; }
+            else if (globalRandomAppearActive) { drawGlobalRandomAppear(ctx, 1); totalDots = globalRandomAppearVisibleCount; if(globalRandomAppearVisibleCount < globalRandomAppearDotPool.length) anyGridWantsAnimating = true; }
+            else if (globalImplodeActive) { drawGlobalImplosion(ctx, 1); totalDots = globalImplodeData.length; anyGridWantsAnimating = true; } // NEW: Draw Implosion
+            else { grids.forEach(grid => { if (grid.isAnimating) anyGridWantsAnimating = true; grid.dotCount = 0; drawStandardGrid(grid, ctx, canvas.width, canvas.height, centerX, centerY); totalDots += grid.dotCount; updateGridUICounter(grid.id); }); }
+
+            globalDotCounterEl.textContent = formatNumberWithCommas(totalDots);
+            // updateColorBreakdownUI will now be called inside drawStandardGrid AFTER lines are processed
+            isAnimatingGlobal = anyGridWantsAnimating || globalExplodeActive || globalRandomAppearActive || globalImplodeActive; // NEW: Add Implode
+            updateGlobalSpecialAnimUI();
+        }
+
+        // --- Drawing Logic ---
+        function drawStandardGrid(grid, targetCtx, targetWidth, targetHeight, targetCenterX, targetCenterY, scale = 1) {
+            const countX = Math.round(grid.currentDotsCountX);
+            const countY = Math.round(grid.currentDotsCountY);
+            const size = grid.currentDotSize;
+            const offset = grid.currentDotOffset;
+            const rotation = grid.currentRotation;
+            if (countX <= 0 || countY <= 0) return 0; // Allow size 0 for lines only
+
+            const scaledSize = size * scale;
+            const scaledOffset = offset * scale;
+            const radius = Math.max(0, scaledSize / 2); // Allow zero radius if size is zero
+
+            targetCtx.save();
+            targetCtx.globalAlpha = grid.opacity; // Apply global opacity
+
+            const positions = calculateDotPositions(grid, countX, countY, scale);
+            if (!positions) { targetCtx.restore(); return 0; }
+            const { gridWidth, gridHeight, dotCoords, minX, minY } = positions;
+
+            const centerOffsetX = minX + gridWidth / 2;
+            const centerOffsetY = minY + gridHeight / 2;
+
+            // --- Apply Grid Transforms ---
+            targetCtx.translate(targetCenterX + scaledOffset, targetCenterY + scaledOffset);
+            targetCtx.rotate(rotation * Math.PI / 180);
+            targetCtx.translate(-centerOffsetX, -centerOffsetY);
+
+            // --- 1. Draw Lines (if enabled) ---
+            if (grid.useLines) {
+                targetCtx.lineCap = 'round'; // Nicer line ends
+                // Prepare line segments grouped by color and width for efficiency
+                const linesToDraw = {}; // Structure: { "color_width": { color: "#...", width: N, segments: [[x1,y1,x2,y2], ...] } }
+
+                const addLineSegment = (p1, p2, settings, i, j) => {
+                    if (!p1 || !p2 || !settings || !settings.enabled || settings.width <= 0) return;
+
+                    const color = settings.useGridAltColors
+                        ? getDotColor(grid, i, j, countX, p1.relX ?? 0, p1.relY ?? 0) // Use starting dot for alt color
+                        : settings.color;
+                    const scaledWidth = settings.width * scale;
+                    const key = `${color}_${scaledWidth}`;
+
+                    if (!linesToDraw[key]) {
+                        linesToDraw[key] = { color: color, width: scaledWidth, segments: [] };
+                    }
+
+                    // Calculate adjusted points to touch dot edge
+                    const dx = p2.x - p1.x;
+                    const dy = p2.y - p1.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist <= radius * 2) return; // Don't draw if dots overlap significantly or touch
+
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+
+                    const startX = p1.x + nx * radius;
+                    const startY = p1.y + ny * radius;
+                    const endX = p2.x - nx * radius;
+                    const endY = p2.y - ny * radius;
+
+                    linesToDraw[key].segments.push([startX, startY, endX, endY]);
+                };
+
+                // --- Collect Line Segments for Each Mode ---
+                if (grid.lineColumnsSettings.enabled) {
+                    for (let i = 0; i < countX; i++) {
+                        for (let j = 0; j < countY - 1; j++) {
+                            addLineSegment(dotCoords[`${i}-${j}`], dotCoords[`${i}-${j+1}`], grid.lineColumnsSettings, i, j);
+                        }
+                    }
+                }
+                if (grid.lineRowsSettings.enabled) {
+                    for (let j = 0; j < countY; j++) {
+                        for (let i = 0; i < countX - 1; i++) {
+                            addLineSegment(dotCoords[`${i}-${j}`], dotCoords[`${i+1}-${j}`], grid.lineRowsSettings, i, j);
+                        }
+                    }
+                }
+                if (grid.lineDiagonalSettings.enabled) { // Simple diagonal (top-left to bottom-right)
+                    for (let i = 0; i < countX - 1; i++) {
+                        for (let j = 0; j < countY - 1; j++) {
+                            addLineSegment(dotCoords[`${i}-${j}`], dotCoords[`${i+1}-${j+1}`], grid.lineDiagonalSettings, i, j);
+                             // Optional: Add other diagonal (top-right to bottom-left)
+                             addLineSegment(dotCoords[`${i+1}-${j}`], dotCoords[`${i}-${j+1}`], grid.lineDiagonalSettings, i+1, j);
+                        }
+                    }
+                }
+                 if (grid.lineSnakeSettings.enabled) {
+                    for (let j = 0; j < countY; j++) {
+                        if (j % 2 === 0) { // Left to Right
+                            for (let i = 0; i < countX - 1; i++) {
+                                addLineSegment(dotCoords[`${i}-${j}`], dotCoords[`${i+1}-${j}`], grid.lineSnakeSettings, i, j);
+                            }
+                            // Connect end of row to start of next row (if not last row)
+                            if (j < countY - 1) {
+                                addLineSegment(dotCoords[`${countX-1}-${j}`], dotCoords[`${countX-1}-${j+1}`], grid.lineSnakeSettings, countX-1, j);
+                            }
+                        } else { // Right to Left
+                            for (let i = countX - 1; i > 0; i--) {
+                                addLineSegment(dotCoords[`${i}-${j}`], dotCoords[`${i-1}-${j}`], grid.lineSnakeSettings, i, j);
+                            }
+                             // Connect end of row to start of next row (if not last row)
+                            if (j < countY - 1) {
+                                addLineSegment(dotCoords[`0-${j}`], dotCoords[`0-${j+1}`], grid.lineSnakeSettings, 0, j);
+                            }
+                        }
+                    }
+                 }
+                 if (grid.lineRandomSettings.enabled && grid.lineRandomSettings.count > 0) {
+                    const potentialPairs = [];
+                    const settings = grid.lineRandomSettings;
+                    for (let i = 0; i < countX; i++) {
+                        for (let j = 0; j < countY; j++) {
+                             // Horizontal connection (Rows)
+                            if (settings.allowRows && i < countX - 1) {
+                                potentialPairs.push([`${i}-${j}`, `${i+1}-${j}`]);
+                            }
+                             // Vertical connection (Columns)
+                            if (settings.allowColumns && j < countY - 1) {
+                                potentialPairs.push([`${i}-${j}`, `${i}-${j+1}`]);
+                            }
+                            // Diagonal connections
+                            if (settings.allowDiagonal) {
+                                if (i < countX - 1 && j < countY - 1) { // TL to BR
+                                    potentialPairs.push([`${i}-${j}`, `${i+1}-${j+1}`]);
+                                }
+                                if (i > 0 && j < countY - 1) { // TR to BL
+                                     potentialPairs.push([`${i}-${j}`, `${i-1}-${j+1}`]);
+                                }
+                            }
+                        }
+                    }
+                    shuffleArray(potentialPairs);
+                    const numToDraw = Math.min(potentialPairs.length, settings.count);
+                    for(let k = 0; k < numToDraw; k++) {
+                        const p1Key = potentialPairs[k][0];
+                        const p2Key = potentialPairs[k][1];
+                        const p1Coords = dotCoords[p1Key];
+                        const p2Coords = dotCoords[p2Key];
+                        // Determine i, j for color lookup (use p1)
+                        const [i1, j1] = p1Key.split('-').map(Number);
+                         addLineSegment(p1Coords, p2Coords, settings, i1, j1);
+                    }
+                 }
+
+
+                // --- Actually Draw the Collected Lines ---
+                Object.values(linesToDraw).forEach(group => {
+                    targetCtx.strokeStyle = group.color;
+                    targetCtx.lineWidth = group.width;
+                    targetCtx.beginPath();
+                    group.segments.forEach(seg => {
+                        targetCtx.moveTo(seg[0], seg[1]);
+                        targetCtx.lineTo(seg[2], seg[3]);
+                        // Count lines for breakdown (optional, can be slow)
+                         if (targetCtx === ctx) {
+                             const colorKey = `line_${group.color}`;
+                             globalColorCounts[colorKey] = (globalColorCounts[colorKey] || 0) + 1;
+                         }
+                    });
+                    targetCtx.stroke();
+                });
+            }
+
+
+            // --- 2. Draw Dots (if size > 0) ---
+            let currentDotCount = 0;
+            if (radius > 0) {
+                // Group dots by color for efficiency
+                const dotsToDraw = {}; // Structure: { "color": [ { x: ..., y: ... }, ... ] }
+
+                for (let i = 0; i < countX; i++) {
+                    for (let j = 0; j < countY; j++) {
+                        const key = `${i}-${j}`;
+                        const pos = dotCoords[key];
+                        if (!pos) continue;
+
+                        const color = getDotColor(grid, i, j, countX, pos.relX, pos.relY);
+                        if (!dotsToDraw[color]) {
+                            dotsToDraw[color] = [];
+                        }
+                        dotsToDraw[color].push({ x: pos.x, y: pos.y });
+
+                        // Count dots for global counter and color breakdown
+                        if (targetCtx === ctx) {
+                            const colorKey = `dot_${color}`; // Prefix to distinguish from lines
+                            globalColorCounts[colorKey] = (globalColorCounts[colorKey] || 0) + 1;
+                        }
+                        currentDotCount++;
+                    }
+                }
+
+                // --- Actually Draw the Collected Dots ---
+                Object.entries(dotsToDraw).forEach(([color, dots]) => {
+                    targetCtx.fillStyle = color;
+                    targetCtx.beginPath();
+                    dots.forEach(dot => {
+                        targetCtx.moveTo(dot.x + radius, dot.y); // moveTo avoids sub-path issues
+                        targetCtx.arc(dot.x, dot.y, radius, 0, Math.PI * 2);
+                    });
+                    targetCtx.fill();
+                });
+            } else {
+                 // Still count potential dot positions even if size is 0
+                 currentDotCount = countX * countY;
+            }
+
+
+            grid.dotCount = currentDotCount; // Store count
+
+            // Update color breakdown UI here, after both dots and lines are processed
+            if (targetCtx === ctx) {
+                 updateColorBreakdownUI();
+            }
+
+            targetCtx.restore(); // Restore transforms and opacity
+            return currentDotCount;
+        }
+
+
+        function calculateDotPositions(grid, countX, countY, scale) {
+            // ... (variable declarations) ...
+            const useGradient=grid.useGradientSpacing; const useRandom=grid.useRandomSpacing;
+            const useZigZag=grid.useZigZagSpacing; const useAltScale=grid.useAltScaleSpacing; const useWave=grid.useWaveSpacing;
+            const baseSpacing=grid.currentDotSpacing*scale;
+            const sX1=grid.spacingX1*scale; const sX2=grid.spacingX2*scale; const sX3=grid.spacingX3*scale;
+            const sY1=grid.spacingY1*scale; const sY2=grid.spacingY2*scale; const sY3=grid.spacingY3*scale;
+            const zigZagAxis=grid.zigZagAxis; const zigZagAmount=grid.zigZagAmount*scale;
+            const altScaleAxis=grid.altScaleAxis; const altScaleA=grid.altScaleA*scale; const altScaleB=grid.altScaleB*scale;
+            const waveAxis=grid.waveAxis; const waveDirAxis=grid.waveDirectionAxis;
+            const waveAmp=grid.waveAmplitude*scale; const waveFreq=grid.waveFrequency; const wavePhase=grid.wavePhase;
+
+            if ((useGradient&&(sX1<=0||sX2<=0||sX3<=0||sY1<=0||sY2<=0||sY3<=0)) ||
+                (useRandom&&baseSpacing<=0) || (useZigZag&&baseSpacing<=0) ||
+                (useAltScale&&(altScaleA<=0||altScaleB<=0)) || (useWave&&baseSpacing<=0) ||
+                (!useGradient&&!useRandom&&!useZigZag&&!useAltScale&&!useWave&&baseSpacing<=0)) return null;
+
+            let dotCoords={}; let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+            let currentX=0; let lastStepX = baseSpacing;
+            let basePositionsX = [0]; let basePositionsY = [0];
+            for (let i=1;i<countX;i++) basePositionsX.push(basePositionsX[i-1]+baseSpacing);
+            for (let j=1;j<countY;j++) basePositionsY.push(basePositionsY[j-1]+baseSpacing);
+
+            for (let i=0; i<countX; i++) {
+                let currentY=0; let lastStepY = baseSpacing;
+                let stepX=0;
+                if (i>0) {
+                    if (useGradient) {const hX=Math.max(1,countX-1)/2; stepX=(i-1<hX)?lerp(sX1,sX2,(i-1)/hX):lerp(sX2,sX3,Math.max(0,i-1-hX)/hX);}
+                    else if (useAltScale && altScaleAxis === 'X') { stepX = (i % 2 !== 0) ? altScaleA : altScaleB; }
+                    else {stepX = baseSpacing;}
+                    currentX += stepX;
+                } else {currentX = 0;}
+
+                for (let j=0; j<countY; j++) {
+                    let stepY=0;
+                    if (j>0) {
+                        if (useGradient) {const hY=Math.max(1,countY-1)/2; stepY=(j-1<hY)?lerp(sY1,sY2,(j-1)/hY):lerp(sY2,sY3,Math.max(0,j-1-hY)/hY);}
+                        else if (useAltScale && altScaleAxis === 'Y') { stepY = (j % 2 !== 0) ? altScaleA : altScaleB; }
+                        else {stepY = baseSpacing;}
+                        currentY += stepY;
+                    } else {currentY = 0;}
+
+                    let finalX = currentX; let finalY = currentY;
+                    if(useRandom){
+                        finalX = basePositionsX[i]; finalY = basePositionsY[j];
+                        let rdx = 0, rdy = 0;
+                        if (i > 0 && i < countX - 1) rdx = (Math.random() - 0.5) * baseSpacing * (grid.randomSpacingUpper - grid.randomSpacingLower);
+                        if (j > 0 && j < countY - 1) rdy = (Math.random() - 0.5) * baseSpacing * (grid.randomSpacingUpper - grid.randomSpacingLower);
+                        finalX += rdx; finalY += rdy;
+                    } else if(useZigZag){
+                        if (zigZagAxis === 'X') { finalX += (j % 2 === 0 ? 1 : -1) * zigZagAmount; }
+                        else { finalY += (i % 2 === 0 ? 1 : -1) * zigZagAmount; }
+                    } else if(useWave){
+                        const wavePos = (waveDirAxis === 'X') ? finalX : finalY;
+                        const offset = waveAmp * Math.sin(wavePos * waveFreq + wavePhase + performance.now()/1000);
+                        if (waveAxis === 'X') { finalX += offset; } else { finalY += offset; }
+                    }
+
+                    dotCoords[`${i}-${j}`] = { x: finalX, y: finalY };
+                    minX=Math.min(minX,finalX); maxX=Math.max(maxX,finalX);
+                    minY=Math.min(minY,finalY); maxY=Math.max(maxY,finalY);
+                }
+            }
+            if(countX===1&&countY===1){minX=maxX=0;minY=maxY=0;}else if(countX===1){minX=maxX=0;}else if(countY===1){minY=maxY=0;}
+            const gridWidth = maxX-minX; const gridHeight = maxY-minY;
+            const gridCenterX = minX + gridWidth / 2; const gridCenterY = minY + gridHeight / 2;
+             // Calculate relative positions needed for coloring/lines
+             for (let i = 0; i < countX; i++) {
+                 for (let j = 0; j < countY; j++) {
+                     const key = `${i}-${j}`;
+                     if (dotCoords[key]) {
+                         dotCoords[key].relX = dotCoords[key].x - gridCenterX;
+                         dotCoords[key].relY = dotCoords[key].y - gridCenterY;
+                     }
+                 }
+             } // <-- *** REMOVED EXTRA BRACE HERE ***
+            return { gridWidth, gridHeight, dotCoords, minX, minY, maxX, maxY };
+        }
+
+
+        function drawGlobalExplosion(targetCtx, scale=1) {
+            globalExplodeData.forEach(d => {
+                const g = grids.find(grid => grid.id === d.gridId);
+                if (!g) return;
+                const sz = (g.dotSize || 5) * scale;
+                const r = Math.max(0.5 * scale, sz / 2);
+                targetCtx.fillStyle = d.color;
+                targetCtx.beginPath();
+                targetCtx.arc(d.currentX, d.currentY, r, 0, Math.PI * 2);
+                targetCtx.fill();
+                if (targetCtx === ctx) {
+                    const colorKey = `dot_${d.color}`;
+                    globalColorCounts[colorKey] = (globalColorCounts[colorKey] || 0) + 1;
+                }
+            });
+            if (targetCtx === ctx) updateColorBreakdownUI(); // Moved inside
+        }
+        function drawGlobalRandomAppear(targetCtx, scale=1) {
+            globalRandomAppearDotPool.filter(p => p.visible).forEach(pE => {
+                const g = grids.find(gr => gr.id === pE.gridId);
+                if (!g) return;
+                const cX = Math.round(g.currentDotsCountX);
+                const cY = Math.round(g.currentDotsCountY);
+                const posD = calculateDotPositions(g, cX, cY, scale);
+                if (!posD) return;
+                const { gridWidth, gridHeight, dotCoords, minX, minY } = posD;
+                const pos = dotCoords[`${pE.i}-${pE.j}`];
+                if (!pos) return;
+                const sz = g.currentDotSize * scale;
+                const off = g.currentDotOffset * scale;
+                const rot = g.currentRotation;
+                const r = Math.max(0.5 * scale, sz / 2);
+                const cOX = minX + gridWidth / 2;
+                const cOY = minY + gridHeight / 2;
+                const rotRad = rot * Math.PI / 180;
+                const co = Math.cos(rotRad), si = Math.sin(rotRad);
+                const gcx = centerX * scale + off, gcy = centerY * scale + off;
+                targetCtx.save();
+                targetCtx.translate(gcx, gcy);
+                targetCtx.rotate(rotRad);
+                targetCtx.translate(-cOX, -cOY);
+                const clr = getDotColor(g, pE.i, pE.j, cX, pos.relX, pos.relY);
+                targetCtx.globalAlpha = g.opacity;
+                targetCtx.fillStyle = clr;
+                targetCtx.beginPath();
+                targetCtx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+                targetCtx.fill();
+                targetCtx.restore();
+                if (targetCtx === ctx) {
+                    const colorKey = `dot_${clr}`;
+                    globalColorCounts[colorKey] = (globalColorCounts[colorKey] || 0) + 1;
+                }
+            });
+            if (targetCtx === ctx) updateColorBreakdownUI(); // Moved inside
+        }
+
+        function getDotColor(grid, i, j, countX, relX, relY) {
+            // ... (This function remains unchanged) ...
+            if (grid.alternatingType === 'none' || grid.alternatingColors.length === 0) return grid.color;
+            const n = grid.alternatingColors.length; let idx;
+            switch (grid.alternatingType) {
+                case 'x': idx = i % n; break;
+                case 'y': idx = j % n; break;
+                case 'both': idx = (i + j) % n; break;
+                case 'snake': const eI = (j % 2 === 0) ? i : (countX - 1 - i); idx = (j * countX + eI); break; // Index for pool or modulo
+                case 'random': if (!grid.shuffledColorPool || grid.shuffledColorPool.length === 0) return grid.color; const poolIdx = (j * countX + i) % grid.shuffledColorPool.length; return grid.shuffledColorPool[poolIdx];
+                case 'radial': const dist = Math.sqrt(relX*relX + relY*relY); idx = Math.floor(dist / (grid.radialScale || 50)) % n; break;
+                case 'angle': const angle = Math.atan2(relY, relX); idx = Math.floor(((angle + Math.PI) / (2 * Math.PI)) * n) % n; break;
+                default: return grid.color;
+            }
+            idx = (idx % n + n) % n; // Ensure positive index and wrap for snake etc.
+            return grid.alternatingColors[idx].hex;
+        }
+        function lerp(a,b,t){t=Math.max(0,Math.min(1,t));return a+(b-a)*t;}
+
+        // --- Animation Loop & Control ---
+        function animationLoop(timestamp){const dt=Math.min(0.1,(timestamp-lastTimestamp)/1000);lastTimestamp=timestamp;let nr=false;if((isAnimatingGlobal)&&!isGloballyPaused){updateAnimations(dt);nr=true;}if(nr){draw();}requestAnimationFrame(animationLoop);}
+        function updateAnimations(deltaTime){
+            const time=performance.now()/1000;
+            if(globalExplodeActive){updateGlobalExplosion(deltaTime,time);}
+            else if(globalRandomAppearActive){updateGlobalRandomAppear(deltaTime,time);}
+            else if(globalImplodeActive){updateGlobalImplosion(deltaTime,time);} // NEW: Update Implosion
+            // Update individual grid animations ONLY if no global special animation is active
+            else { grids.forEach(grid=>{if(!grid.isAnimating)return; const calcOsc=(p)=>{if(!p||p.time<=0)return p.lower;const c=(time/p.time)%1.0;const o=Math.sin(c*2*Math.PI);const r=p.upper-p.lower;return p.lower+r*(o+1)/2;};if(grid.animRotation){grid.currentRotation=(grid.currentRotation+grid.animRotationParams.speed*deltaTime)%360;updateGridUIValue(grid.id,'rotation',grid.currentRotation);}else if(grid.currentRotation!==grid.rotation){grid.currentRotation=grid.rotation;updateGridUIValue(grid.id,'rotation',grid.currentRotation);}if(grid.animSpacing&&!grid.useGradientSpacing&&!grid.useRandomSpacing&&!grid.useZigZagSpacing&&!grid.useAltScaleSpacing&&!grid.useWaveSpacing){grid.currentDotSpacing=Math.max(0.1,calcOsc(grid.animSpacingParams));updateGridUIValue(grid.id,'dotSpacing',grid.currentDotSpacing);}else if(!grid.useGradientSpacing&&!grid.useRandomSpacing&&!grid.useZigZagSpacing&&!grid.useAltScaleSpacing&&!grid.useWaveSpacing&&grid.currentDotSpacing!==grid.dotSpacing){grid.currentDotSpacing=grid.dotSpacing;updateGridUIValue(grid.id,'dotSpacing',grid.currentDotSpacing);}if(grid.animSize){grid.currentDotSize=Math.max(0,calcOsc(grid.animSizeParams));updateGridUIValue(grid.id,'dotSize',grid.currentDotSize);}else if(grid.currentDotSize!==grid.dotSize){grid.currentDotSize=grid.dotSize;updateGridUIValue(grid.id,'dotSize',grid.currentDotSize);}if(grid.animOffset){grid.currentDotOffset=calcOsc(grid.animOffsetParams);updateGridUIValue(grid.id,'dotOffset',grid.currentDotOffset);}else if(grid.currentDotOffset!==grid.dotOffset){grid.currentDotOffset=grid.dotOffset;updateGridUIValue(grid.id,'dotOffset',grid.currentDotOffset);}if(grid.animCount){const p=grid.animCountParams;if(p.time>0){const c=(time/p.time)%1.0,o=Math.sin(c*2*Math.PI);const rx=p.upperX-p.lowerX,ry=p.upperY-p.lowerY;grid.currentDotsCountX=Math.max(1,Math.round(p.lowerX+rx*(o+1)/2));grid.currentDotsCountY=Math.max(1,Math.round(p.lowerY+ry*(o+1)/2));updateGridUIValue(grid.id,'dotsCountX',grid.currentDotsCountX);updateGridUIValue(grid.id,'dotsCountY',grid.currentDotsCountY);}}else if(grid.currentDotsCountX!==grid.dotsCountX||grid.currentDotsCountY!==grid.dotsCountY){grid.currentDotsCountX=grid.dotsCountX;grid.currentDotsCountY=grid.dotsCountY;updateGridUIValue(grid.id,'dotsCountX',grid.currentDotsCountX);updateGridUIValue(grid.id,'dotsCountY',grid.currentDotsCountY);}});}
+        }
+        function toggleGlobalPause(){isGloballyPaused=!isGloballyPaused;globalPauseButton.textContent=isGloballyPaused?'Resume Animations':'Pause Animations';globalPauseButton.style.backgroundColor=isGloballyPaused?'#ffdddd':'#e0e0e0';if(!isGloballyPaused){requestAnimationFrame(draw);}}
+        function doReset(){if(confirm("Reset all settings and grids?")){window.location.reload();}}
+
+        // --- Global Special Animation: Random Appear ---
+        function activateGlobalRandomAppear(){if(globalRandomAppearActive)return;deactivateGlobalExplode();globalRandomAppearActive=true;globalRandomAppearDuration=parseFloat(globalRandomAppearDurationInput.value)||0.01;globalRandomAppearStartTime=performance.now()/1000;globalRandomAppearDotPool=[];globalRandomAppearVisibleCount=0;grids.forEach(grid=>{const cx=Math.round(grid.currentDotsCountX);const cy=Math.round(grid.currentDotsCountY);for(let i=0;i<cx;i++){for(let j=0;j<cy;j++){globalRandomAppearDotPool.push({gridId:grid.id,i,j,visible:false});}}});shuffleArray(globalRandomAppearDotPool);updateGlobalSpecialAnimUI();if(!isAnimatingGlobal){isAnimatingGlobal=true;if(!isGloballyPaused)requestAnimationFrame(animationLoop);}}
+        function deactivateGlobalRandomAppear(){if(!globalRandomAppearActive)return;globalRandomAppearActive=false;globalRandomAppearDotPool=[];globalRandomAppearVisibleCount=0;updateGlobalSpecialAnimUI();requestAnimationFrame(draw);}
+        function updateGlobalRandomAppear(deltaTime, currentTime) { if (!globalRandomAppearActive || isGloballyPaused || globalRandomAppearDotPool.length === 0) return; const elapsedTime = currentTime - globalRandomAppearStartTime; const targetVisibleRatio = globalRandomAppearDuration > 0 ? Math.min(1, elapsedTime / globalRandomAppearDuration) : 1; const targetVisibleCount = Math.floor(targetVisibleRatio * globalRandomAppearDotPool.length); if (targetVisibleCount > globalRandomAppearVisibleCount) { for (let i = globalRandomAppearVisibleCount; i < targetVisibleCount; i++) { if(globalRandomAppearDotPool[i]) globalRandomAppearDotPool[i].visible = true; } globalRandomAppearVisibleCount = targetVisibleCount; } if (globalRandomAppearVisibleCount >= globalRandomAppearDotPool.length && globalRandomAppearActive) { /* Finished */ updateGlobalSpecialAnimUI(); } }
+        function shuffleArray(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}
+
+        // --- Global Special Animation: Explode ---
+        function activateGlobalExplode(){if(globalExplodeActive)return;deactivateGlobalRandomAppear();globalExplodeActive=true;globalExplodePhase='exploding';globalExplodeSpeedMultiplier=parseFloat(globalExplodeSpeedInput.value)||1.0;globalExplodeReturnSpeedMultiplier=parseFloat(globalExplodeReturnSpeedInput.value)||1.0;globalExplodeStartTime=performance.now();globalExplodeData=[];let dotIdx=0;grids.forEach(grid=>{const cx=Math.round(grid.currentDotsCountX);const cy=Math.round(grid.currentDotsCountY);const posData=calculateDotPositions(grid,cx,cy,1);if(!posData)return;const{gridWidth,gridHeight,dotCoords,minX,minY}=posData;const centerOffsetX=minX+gridWidth/2;const centerOffsetY=minY+gridHeight/2;const rotRad=grid.currentRotation*Math.PI/180;const co=Math.cos(rotRad),si=Math.sin(rotRad);const gcx=centerX+grid.currentDotOffset,gcy=centerY+grid.currentDotOffset;for(let i=0;i<cx;i++){for(let j=0;j<cy;j++){const pos=dotCoords[`${i}-${j}`]; if(!pos) continue; const relX=pos.x-centerOffsetX; const relY=pos.y-centerOffsetY; const rotX=relX*co-relY*si; const rotY=relX*si+relY*co; const startX=gcx+rotX; const startY=gcy+rotY; const angle=Math.random()*Math.PI*2;const speed=(100+Math.random()*200)*globalExplodeSpeedMultiplier;const vx=Math.cos(angle)*speed,vy=Math.sin(angle)*speed;globalExplodeData.push({gridId:grid.id,dotIndex:dotIdx++,startX:startX,startY:startY,currentX:startX,currentY:startY,vx:vx,vy:vy,color:getDotColor(grid,i,j,cx, pos.relX, pos.relY)});}}});updateGlobalSpecialAnimUI();if(!isAnimatingGlobal){isAnimatingGlobal=true;if(!isGloballyPaused)requestAnimationFrame(animationLoop);}}
+        function deactivateGlobalExplode(){if(!globalExplodeActive)return;globalExplodeActive=false;globalExplodePhase='idle';globalExplodeData=[];updateGlobalSpecialAnimUI();requestAnimationFrame(draw);}
+        function updateGlobalExplosion(deltaTime,time){const now=performance.now();let allOff=true;let allRev=true;const effRevDur=EXPLODE_REVERSE_BASE_DURATION/globalExplodeReturnSpeedMultiplier;switch(globalExplodePhase){case'exploding':globalExplodeData.forEach(d=>{d.currentX+=d.vx*deltaTime;d.currentY+=d.vy*deltaTime;if(d.currentX>-50&&d.currentX<canvas.width+50&&d.currentY>-50&&d.currentY<canvas.height+50){allOff=false;}});if(allOff){globalExplodePhase='holding';globalExplodeHoldStartTime=now;/*console.log("Explode finished, holding...");*/}break;case'holding':if(now-globalExplodeHoldStartTime>=EXPLODE_HOLD_DURATION*1000){globalExplodePhase='reversing';globalExplodeReverseStartTime=now;/*console.log("Hold finished, reversing...");*/}break;case'reversing':const revProg=Math.min(1,(now-globalExplodeReverseStartTime)/(effRevDur*1000));globalExplodeData.forEach(d=>{d.currentX=lerp(d.currentX,d.startX,revProg*0.2);d.currentY=lerp(d.currentY,d.startY,revProg*0.2);const distSq=(d.currentX-d.startX)**2+(d.currentY-d.startY)**2;if(distSq>1){allRev=false;}});if(revProg>=1&&allRev){/*console.log("Reverse finished.");*/deactivateGlobalExplode();}break;}}
+
+        // --- Global Special Animation: Implode ---
+        function activateGlobalImplode() {
+            if (globalImplodeActive) return;
+            // Deactivate other special animations
+            deactivateGlobalExplode();
+            deactivateGlobalRandomAppear();
+
+            globalImplodeActive = true;
+            globalImplodePhase = 'imploding';
+            globalImplodeDuration = parseFloat(globalImplodeDurationInput.value) || 1.5;
+            globalImplodeReverseDuration = parseFloat(globalImplodeReverseDurationInput.value) || 1.5;
+            globalImplodeStartTime = performance.now();
+            globalImplodeData = [];
+            globalImplodeLineData = [];
+            let dotIdx = 0;
+            const dotMap = {}; // Map 'gridId-i-j' to dotIndex in globalImplodeData
+
+            grids.forEach(grid => {
+                const cx = Math.round(grid.currentDotsCountX);
+                const cy = Math.round(grid.currentDotsCountY);
+                const posData = calculateDotPositions(grid, cx, cy, 1);
+                if (!posData) return;
+                const { gridWidth, gridHeight, dotCoords, minX, minY } = posData;
+                const centerOffsetX = minX + gridWidth / 2;
+                const centerOffsetY = minY + gridHeight / 2;
+                const rotRad = grid.currentRotation * Math.PI / 180;
+                const co = Math.cos(rotRad), si = Math.sin(rotRad);
+                const gcx = centerX + grid.currentDotOffset, gcy = centerY + grid.currentDotOffset;
+
+                // --- Capture Dot Data ---
+                for (let i = 0; i < cx; i++) {
+                    for (let j = 0; j < cy; j++) {
+                        const pos = dotCoords[`${i}-${j}`];
+                        if (!pos) continue;
+                        const relX = pos.x - centerOffsetX;
+                        const relY = pos.y - centerOffsetY;
+                        const rotX = relX * co - relY * si;
+                        const rotY = relX * si + relY * co;
+                        const startX = gcx + rotX;
+                        const startY = gcy + rotY;
+                        const currentDotIndex = dotIdx++;
+                        const randomSpeedFactor = 0.5 + Math.random(); // Range [0.5, 1.5)
+                        globalImplodeData.push({
+                            gridId: grid.id,
+                            dotIndex: currentDotIndex,
+                            startX: startX, // Original position
+                            startY: startY,
+                            targetX: centerX, // Target is canvas center
+                            targetY: centerY,
+                            currentX: startX, // Start at original position
+                            currentY: startY,
+                            color: getDotColor(grid, i, j, cx, pos.relX, pos.relY),
+                            implodeSpeedFactor: randomSpeedFactor, // Store random speed factor
+                            i: i, j: j
+                        });
+                        dotMap[`${grid.id}-${i}-${j}`] = currentDotIndex;
+                    }
+                }
+
+                // --- Capture Line Data ---
+                if (grid.useLines) {
+                    const radius = Math.max(0, grid.currentDotSize / 2);
+                    const addImplodingLine = (p1Key, p2Key, settings) => {
+                        if (!settings || !settings.enabled || settings.width <= 0) return;
+                        const p1Coords = dotCoords[p1Key];
+                        const p2Coords = dotCoords[p2Key];
+                        if (!p1Coords || !p2Coords) return;
+
+                        const dx = p2Coords.x - p1Coords.x;
+                        const dy = p2Coords.y - p1Coords.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist <= radius * 2 && radius > 0) return;
+
+                        const [i1, j1] = p1Key.split('-').map(Number);
+                        const color = settings.useGridAltColors
+                            ? getDotColor(grid, i1, j1, cx, p1Coords.relX ?? 0, p1Coords.relY ?? 0)
+                            : settings.color;
+                        const width = settings.width;
+
+                        const dotIndex1 = dotMap[`${grid.id}-${p1Key}`];
+                        const dotIndex2 = dotMap[`${grid.id}-${p2Key}`];
+
+                        if (dotIndex1 !== undefined && dotIndex2 !== undefined) {
+                             const dot1 = globalImplodeData[dotIndex1];
+                             const dot2 = globalImplodeData[dotIndex2];
+                            // Calculate adjusted start points based on dot radius and START positions
+                            const nx = (dot2.startX - dot1.startX) / dist;
+                            const ny = (dot2.startY - dot1.startY) / dist;
+                            const startX1_adj = dot1.startX + nx * radius;
+                            const startY1_adj = dot1.startY + ny * radius;
+                            const startX2_adj = dot2.startX - nx * radius;
+                            const startY2_adj = dot2.startY - ny * radius;
+
+                            globalImplodeLineData.push({
+                                gridId: grid.id,
+                                startDotIndex: dotIndex1,
+                                endDotIndex: dotIndex2,
+                                startX1: startX1_adj, startY1: startY1_adj, // Store adjusted start
+                                startX2: startX2_adj, startY2: startY2_adj,
+                                currentX1: startX1_adj, currentY1: startY1_adj, // Initialize current
+                                currentX2: startX2_adj, currentY2: startY2_adj,
+                                color: color,
+                                width: width
+                            });
+                        }
+                    };
+
+                    // Collect lines based on active modes (Corrected calls below)
+                    if (grid.lineColumnsSettings.enabled) { for (let i = 0; i < cx; i++) { for (let j = 0; j < cy - 1; j++) { addImplodingLine(`${i}-${j}`, `${i}-${j+1}`, grid.lineColumnsSettings); } } }
+                    if (grid.lineRowsSettings.enabled) { for (let j = 0; j < cy; j++) { for (let i = 0; i < cx - 1; i++) { addImplodingLine(`${i}-${j}`, `${i+1}-${j}`, grid.lineRowsSettings); } } }
+                    if (grid.lineDiagonalSettings.enabled) { for (let i = 0; i < cx - 1; i++) { for (let j = 0; j < cy - 1; j++) { addImplodingLine(`${i}-${j}`, `${i+1}-${j+1}`, grid.lineDiagonalSettings); addImplodingLine(`${i+1}-${j}`, `${i}-${j+1}`, grid.lineDiagonalSettings); } } }
+                    if (grid.lineSnakeSettings.enabled) { for (let j = 0; j < cy; j++) { if (j % 2 === 0) { for (let i = 0; i < cx - 1; i++) { addImplodingLine(`${i}-${j}`, `${i+1}-${j}`, grid.lineSnakeSettings); } if (j < cy - 1) { addImplodingLine(`${cx-1}-${j}`, `${cx-1}-${j+1}`, grid.lineSnakeSettings); } } else { for (let i = cx - 1; i > 0; i--) { addImplodingLine(`${i}-${j}`, `${i-1}-${j}`, grid.lineSnakeSettings); } if (j < cy - 1) { addImplodingLine(`0-${j}`, `0-${j+1}`, grid.lineSnakeSettings); } } } }
+                    if (grid.lineRandomSettings.enabled && grid.lineRandomSettings.count > 0) {
+                        const potentialPairs = []; const settings = grid.lineRandomSettings;
+                        for (let i = 0; i < cx; i++) { for (let j = 0; j < cy; j++) { if (settings.allowRows && i < cx - 1) { potentialPairs.push([`${i}-${j}`, `${i+1}-${j}`]); } if (settings.allowColumns && j < cy - 1) { potentialPairs.push([`${i}-${j}`, `${i}-${j+1}`]); } if (settings.allowDiagonal) { if (i < cx - 1 && j < cy - 1) { potentialPairs.push([`${i}-${j}`, `${i+1}-${j+1}`]); } if (i > 0 && j < cy - 1) { potentialPairs.push([`${i}-${j}`, `${i-1}-${j+1}`]); } } } }
+                        shuffleArray(potentialPairs);
+                        const numToDraw = Math.min(potentialPairs.length, settings.count);
+                        for(let k = 0; k < numToDraw; k++) {
+                             addImplodingLine(potentialPairs[k][0], potentialPairs[k][1], settings);
+                        }
+                    }
+                }
+            });
+            updateGlobalSpecialAnimUI();
+            if (!isAnimatingGlobal) {
+                isAnimatingGlobal = true;
+                if (!isGloballyPaused) requestAnimationFrame(animationLoop);
+            }
+        }
+
+        function deactivateGlobalImplode() {
+            if (!globalImplodeActive) return;
+            globalImplodeActive = false;
+            globalImplodePhase = 'idle';
+            globalImplodeData = [];
+            globalImplodeLineData = [];
+            updateGlobalSpecialAnimUI();
+            requestAnimationFrame(draw);
+        }
+
+        function updateGlobalImplosion(deltaTime, time) {
+            const now = performance.now();
+            let allAtTarget = true;
+            let allReturned = true;
+
+            if (globalImplodePhase === 'imploding') {
+                const elapsedTime = now - globalImplodeStartTime;
+                const baseProgress = globalImplodeDuration > 0 ? elapsedTime / (globalImplodeDuration * 1000) : 1;
+
+                globalImplodeData.forEach(d => {
+                    // Adjust progress by the dot's random factor, clamp between 0 and 1
+                    const dotProgress = Math.min(1, baseProgress * d.implodeSpeedFactor);
+                    d.currentX = lerp(d.startX, d.targetX, dotProgress);
+                    d.currentY = lerp(d.startY, d.targetY, dotProgress);
+                    const distSq = (d.currentX - d.targetX)**2 + (d.currentY - d.targetY)**2;
+                    // Check if THIS dot has reached the target (using base progress for overall check)
+                    if (baseProgress < 1 || distSq > IMPLODE_DISTANCE_THRESHOLD_SQ) {
+                        allAtTarget = false;
+                    }
+                });
+
+                // Check based on the *base* progress if the *slowest* dot should have arrived
+                if (baseProgress >= 1 && allAtTarget) {
+                    globalImplodePhase = 'reversing';
+                    globalImplodeReverseStartTime = now;
+                     // Ensure dots are exactly at the center before reversing
+                     globalImplodeData.forEach(d => { d.currentX = d.targetX; d.currentY = d.targetY; });
+                    /* console.log("Implode finished, reversing..."); */
+                }
+
+            } else if (globalImplodePhase === 'reversing') {
+                const reverseElapsedTime = now - globalImplodeReverseStartTime;
+                const baseReverseProgress = globalImplodeReverseDuration > 0 ? reverseElapsedTime / (globalImplodeReverseDuration * 1000) : 1;
+
+                globalImplodeData.forEach(d => {
+                    // Adjust reverse progress by the dot's random factor, clamp between 0 and 1
+                    const dotReverseProgress = Math.min(1, baseReverseProgress * d.implodeSpeedFactor);
+                    // Interpolate from target (center) back to start using dot-specific progress
+                    d.currentX = lerp(d.targetX, d.startX, dotReverseProgress);
+                    d.currentY = lerp(d.targetY, d.startY, dotReverseProgress);
+
+                    const distSq = (d.currentX - d.startX)**2 + (d.currentY - d.startY)**2;
+                    // Check if THIS dot has returned (using base progress for overall check)
+                    if (baseReverseProgress < 1 || distSq > 1) { // Use a small threshold for return check
+                        allReturned = false;
+                    }
+                });
+
+                 // Check based on the *base* progress if the *slowest* dot should have returned
+                if (baseReverseProgress >= 1 && allReturned) {
+                    /* console.log("Implode reverse finished."); */
+                    deactivateGlobalImplode();
+                }
+            }
+
+            // Update Line Positions based on connected dots for both phases
+            globalImplodeLineData.forEach(line => {
+                const dot1 = globalImplodeData[line.startDotIndex];
+                const dot2 = globalImplodeData[line.endDotIndex];
+                if (!dot1 || !dot2) return;
+
+                const grid = grids.find(g => g.id === line.gridId);
+                const radius = grid ? Math.max(0, grid.currentDotSize / 2) : 0;
+
+                // Calculate adjusted points based on CURRENT dot positions and radius
+                const dx = dot2.currentX - dot1.currentX;
+                const dy = dot2.currentY - dot1.currentY;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                const nx = dx / dist;
+                const ny = dy / dist;
+
+                line.currentX1 = dot1.currentX + nx * radius;
+                line.currentY1 = dot1.currentY + ny * radius;
+                line.currentX2 = dot2.currentX - nx * radius;
+                line.currentY2 = dot2.currentY - ny * radius;
+            });
+        }
+
+        function drawGlobalImplosion(targetCtx, scale = 1) {
+            // 1. Draw Imploding Dots
+            globalImplodeData.forEach(d => {
+                const g = grids.find(grid => grid.id === d.gridId);
+                if (!g) return;
+                const sz = (g.dotSize || 5) * scale; // Use original grid size, apply scaling
+                const r = Math.max(0.5 * scale, sz / 2);
+                targetCtx.fillStyle = d.color;
+                targetCtx.beginPath();
+                 // Use currentX/Y, apply scale to radius
+                targetCtx.arc(d.currentX, d.currentY, r, 0, Math.PI * 2);
+                targetCtx.fill();
+                if (targetCtx === ctx) {
+                    const colorKey = `dot_${d.color}`;
+                    globalColorCounts[colorKey] = (globalColorCounts[colorKey] || 0) + 1;
+                }
+            });
+
+            // 2. Draw Imploding Lines
+            targetCtx.lineCap = 'round';
+            const linesByStyle = {};
+            globalImplodeLineData.forEach(line => {
+                const scaledWidth = line.width * scale;
+                const styleKey = `${line.color}_${scaledWidth}`;
+                if (!linesByStyle[styleKey]) {
+                    linesByStyle[styleKey] = { color: line.color, width: scaledWidth, segments: [] };
+                }
+                 // Use current line endpoints, apply scale to width
+                linesByStyle[styleKey].segments.push([line.currentX1, line.currentY1, line.currentX2, line.currentY2]);
+                if (targetCtx === ctx) {
+                    const colorKey = `line_${line.color}`;
+                    globalColorCounts[colorKey] = (globalColorCounts[colorKey] || 0) + 1;
+                }
+            });
+
+            Object.values(linesByStyle).forEach(group => {
+                targetCtx.strokeStyle = group.color;
+                targetCtx.lineWidth = group.width; // Width is already scaled
+                targetCtx.beginPath();
+                group.segments.forEach(seg => {
+                    targetCtx.moveTo(seg[0], seg[1]);
+                    targetCtx.lineTo(seg[2], seg[3]);
+                });
+                targetCtx.stroke();
+            });
+
+            if (targetCtx === ctx) updateColorBreakdownUI();
+        }
+
+        // --- Grid Management ---
+        function addGrid(sourceGrid=null){const ng=getDefaultGridState();if(sourceGrid){Object.keys(ng).forEach(k=>{if(k!=='id'&&k!=='name'&&k!=='dotCount'&&sourceGrid.hasOwnProperty(k)&&!k.startsWith('current')&&k!=='shuffledColorPool'){try{ng[k]=JSON.parse(JSON.stringify(sourceGrid[k]));}catch(e){ng[k]=sourceGrid[k];}}}); ng.name=`${sourceGrid.name} Copy`; ng.currentRotation=ng.rotation; ng.currentDotSize=ng.dotSize; ng.currentDotSpacing=ng.dotSpacing; ng.currentDotOffset=ng.dotOffset; ng.currentDotsCountX=ng.dotsCountX; ng.currentDotsCountY=ng.dotsCountY; generateShuffledColorPool(ng);} grids.push(ng); createGridUI(ng); draw(); updateGlobalAnimationStatus();}
+        function duplicateGrid(gridId){const sg=grids.find(g=>g.id===gridId); if(sg){addGrid(sg);}}
+        function deleteGrid(gridId){if(grids.length<=1){alert("Cannot delete last grid.");return;} grids=grids.filter(g=>g.id!==gridId); const el=document.getElementById(`grid-${gridId}`); if(el){el.remove();} draw();updateGlobalAnimationStatus();}
+        function updateGlobalAnimationStatus(){isAnimatingGlobal=globalExplodeActive||globalRandomAppearActive||globalImplodeActive||grids.some(g=>g.isAnimating);} // NEW: Add Implode
+
+        // --- UI Creation / Updates ---
+        function createGridUI(grid) {
+            const section = document.createElement('section');
+            section.className = 'grid-section';
+            section.id = `grid-${grid.id}`;
+            section.style.backgroundColor = generateGridBackgroundColor(grid.id);
+
+            section.innerHTML = `
+                <div class="grid-header"><h3>${grid.name}<span class="gridDotCount">(Dots: 0)</span></h3><div class="grid-actions"><button class="duplicate-grid-btn" data-id="${grid.id}">Duplicate</button><button class="delete-grid-btn" data-id="${grid.id}">Delete</button></div></div>
+                <div class="control-group inline"> <label for="dotsCountX-${grid.id}">X:</label><input type="number" id="dotsCountX-${grid.id}" data-property="dotsCountX" min="1" step="1" value="${grid.dotsCountX}"><label for="dotsCountY-${grid.id}">Y:</label><input type="number" id="dotsCountY-${grid.id}" data-property="dotsCountY" min="1" step="1" value="${grid.dotsCountY}"></div>
+                <!-- Spacing Controls -->
+                <div class="spacing-controls"><h4>Spacing</h4>
+                     <div class="control-group standard-spacing-control"> <label for="dotSpacing-${grid.id}">Base Spacing:</label> <div class="slider-container"><input type="range" id="dotSpacing-${grid.id}" data-property="dotSpacing" min="0.1" max="100" step="0.1" value="${grid.dotSpacing}"><input type="number" data-property="dotSpacing" min="0.1" max="100" step="0.1" value="${grid.dotSpacing}"></div></div>
+                     <div class="control-group"><input type="checkbox" id="gradSpacingToggle-${grid.id}" data-spacing-mode-toggle="useGradientSpacing"><label for="gradSpacingToggle-${grid.id}" class="toggle-label"> Gradient</label></div>
+                     <div class="spacing-mode-params gradient-spacing-params"> <div class="control-group inline"> <label>X:</label><input type="number" data-property="spacingX1" min="0.1" step="0.1" value="${grid.spacingX1}"><input type="number" data-property="spacingX2" min="0.1" step="0.1" value="${grid.spacingX2}"><input type="number" data-property="spacingX3" min="0.1" step="0.1" value="${grid.spacingX3}"></div> <div class="control-group inline"> <label>Y:</label><input type="number" data-property="spacingY1" min="0.1" step="0.1" value="${grid.spacingY1}"><input type="number" data-property="spacingY2" min="0.1" step="0.1" value="${grid.spacingY2}"><input type="number" data-property="spacingY3" min="0.1" step="0.1" value="${grid.spacingY3}"></div> </div>
+                     <div class="control-group"><input type="checkbox" id="randSpacingToggle-${grid.id}" data-spacing-mode-toggle="useRandomSpacing"><label for="randSpacingToggle-${grid.id}" class="toggle-label"> Random</label></div>
+                     <div class="spacing-mode-params random-spacing-params"> <div class="control-group inline"><label>Low(%):</label><input type="number" data-property="randomSpacingLower" min="0" step="0.01" value="${grid.randomSpacingLower}"><label>Up(%):</label><input type="number" data-property="randomSpacingUpper" min="0" step="0.01" value="${grid.randomSpacingUpper}"></div> </div>
+                     <div class="control-group"><input type="checkbox" id="zigZagSpacingToggle-${grid.id}" data-spacing-mode-toggle="useZigZagSpacing"><label for="zigZagSpacingToggle-${grid.id}" class="toggle-label"> ZigZag</label></div>
+                     <div class="spacing-mode-params zigzag-spacing-params"> <div class="control-group inline"><label>Axis:</label><select data-property="zigZagAxis"><option value="X">X</option><option value="Y">Y</option></select><label>Amount:</label><input type="number" data-property="zigZagAmount" step="any" value="${grid.zigZagAmount}"></div> </div>
+                     <div class="control-group"><input type="checkbox" id="altScaleSpacingToggle-${grid.id}" data-spacing-mode-toggle="useAltScaleSpacing"><label for="altScaleSpacingToggle-${grid.id}" class="toggle-label"> Alt. Scale</label></div>
+                     <div class="spacing-mode-params altscale-spacing-params"> <div class="control-group inline"><label>Axis:</label><select data-property="altScaleAxis"><option value="X">X</option><option value="Y">Y</option></select><label>Spc A:</label><input type="number" data-property="altScaleA" min="0.1" step="0.1" value="${grid.altScaleA}"><label>Spc B:</label><input type="number" data-property="altScaleB" min="0.1" step="0.1" value="${grid.altScaleB}"></div> </div>
+                     <div class="control-group"><input type="checkbox" id="waveSpacingToggle-${grid.id}" data-spacing-mode-toggle="useWaveSpacing"><label for="waveSpacingToggle-${grid.id}" class="toggle-label"> Wave</label></div>
+                     <div class="spacing-mode-params wave-spacing-params"> <div class="control-group inline"><label>Offset:</label><select data-property="waveAxis"><option value="X">X</option><option value="Y">Y</option></select><label>Dir:</label><select data-property="waveDirectionAxis"><option value="X">X</option><option value="Y">Y</option></select></div><div class="control-group inline"><label>Amp:</label><input type="number" data-property="waveAmplitude" step="any" value="${grid.waveAmplitude}"><label>Freq:</label><input type="number" data-property="waveFrequency" step="0.01" value="${grid.waveFrequency}"><label>Phase:</label><input type="number" data-property="wavePhase" step="any" value="${grid.wavePhase}"></div> </div>
+                </div>
+                <!-- Other Controls -->
+                <div class="control-group"><label for="dotSize-${grid.id}">Dot Size:</label><div class="slider-container"><input type="range" id="dotSize-${grid.id}" data-property="dotSize" min="0" max="50" step="0.1" value="${grid.dotSize}"><input type="number" data-property="dotSize" min="0" max="50" step="0.1" value="${grid.dotSize}"></div></div>
+                <div class="control-group"><label for="dotOffset-${grid.id}">Offset:</label><div class="slider-container"><input type="range" id="dotOffset-${grid.id}" data-property="dotOffset" min="-200" max="200" step="1" value="${grid.dotOffset}"><input type="number" data-property="dotOffset" min="-200" max="200" step="1" value="${grid.dotOffset}"></div></div>
+                <div class="control-group"><label for="rotation-${grid.id}">Rotation:</label><div class="slider-container"><input type="range" id="rotation-${grid.id}" data-property="rotation" min="0" max="360" step="1" value="${grid.rotation}"><input type="number" data-property="rotation" min="-360" max="360" step="any" value="${grid.rotation}"></div></div>
+                <div class="control-group"><label for="dotColor-${grid.id}">Base Color:</label><input type="color" id="dotColor-${grid.id}" data-property="color" value="${grid.color}"></div>
+                <div class="control-group"><label for="opacity-${grid.id}">Opacity:</label><div class="slider-container"><input type="range" id="opacity-${grid.id}" data-property="opacity" min="0" max="1" step="0.01" value="${grid.opacity}"><input type="number" data-property="opacity" min="0" max="1" step="0.01" value="${grid.opacity}"></div></div>
+                <!-- Color Controls -->
+                <div class="color-controls"><h4>Coloring</h4>
+                    <label for="altColorType-${grid.id}">Mode:</label>
+                    <select id="altColorType-${grid.id}" data-property="alternatingType">
+                        <option value="none">None</option> <option value="x">X</option> <option value="y">Y</option>
+                        <option value="both">X+Y</option> <option value="random">Random</option> <option value="radial">Radial</option>
+                        <option value="angle">Angle</option> <option value="snake">Snake</option>
+                    </select>
+                    <div class="color-mode-params radial-color-param hidden"> <div class="control-group inline"><label for="radialScale-${grid.id}">Radial Scale:</label><input type="number" id="radialScale-${grid.id}" data-property="radialScale" min="1" step="1" value="${grid.radialScale}"></div></div>
+                    <label>Alternating Colors:</label>
+                    <ul class="color-list" id="colorList-${grid.id}" data-grid-id="${grid.id}"></ul>
+                    <button class="add-color-btn" data-id="${grid.id}">Add Color</button>
+                 </div>
+
+                <!-- Line Controls -->
+                <div class="line-controls"><h4>Lines</h4>
+                     <div class="control-group">
+                         <input type="checkbox" id="useLines-${grid.id}" data-property="useLines"><label for="useLines-${grid.id}" class="toggle-label">Enable Lines</label>
+                     </div>
+                     <div class="line-modes-container hidden"> <!-- This container hides all line options -->
+                         <!-- Columns -->
+                         <div class="control-group">
+                             <input type="checkbox" id="lineModeCols-${grid.id}" data-line-mode-toggle="lineColumnsSettings">
+                             <label for="lineModeCols-${grid.id}" class="toggle-label">Columns</label>
+                         </div>
+                         <div class="line-mode-params" data-line-param-for="lineColumnsSettings">
+                            <div class="control-group inline">
+                                 <label>Width:</label><input type="number" data-line-setting="width" data-target-object="lineColumnsSettings" min="0.1" step="0.1" value="${grid.lineColumnsSettings.width}">
+                                 <label>Color:</label><input type="color" data-line-setting="color" data-target-object="lineColumnsSettings" value="${grid.lineColumnsSettings.color}">
+                                 <input type="checkbox" id="lineColsUseAlt-${grid.id}" data-line-setting="useGridAltColors" data-target-object="lineColumnsSettings">
+                                 <label for="lineColsUseAlt-${grid.id}" class="label-normal">Use Grid Alt Colors</label>
+                             </div>
+                         </div>
+                         <!-- Rows -->
+                         <div class="control-group">
+                             <input type="checkbox" id="lineModeRows-${grid.id}" data-line-mode-toggle="lineRowsSettings">
+                             <label for="lineModeRows-${grid.id}" class="toggle-label">Rows</label>
+                         </div>
+                         <div class="line-mode-params" data-line-param-for="lineRowsSettings">
+                             <div class="control-group inline">
+                                 <label>Width:</label><input type="number" data-line-setting="width" data-target-object="lineRowsSettings" min="0.1" step="0.1" value="${grid.lineRowsSettings.width}">
+                                 <label>Color:</label><input type="color" data-line-setting="color" data-target-object="lineRowsSettings" value="${grid.lineRowsSettings.color}">
+                                 <input type="checkbox" id="lineRowsUseAlt-${grid.id}" data-line-setting="useGridAltColors" data-target-object="lineRowsSettings">
+                                 <label for="lineRowsUseAlt-${grid.id}" class="label-normal">Use Grid Alt Colors</label>
+                              </div>
+                         </div>
+                         <!-- Diagonal -->
+                         <div class="control-group">
+                              <input type="checkbox" id="lineModeDiag-${grid.id}" data-line-mode-toggle="lineDiagonalSettings">
+                              <label for="lineModeDiag-${grid.id}" class="toggle-label">Diagonal</label>
+                          </div>
+                          <div class="line-mode-params" data-line-param-for="lineDiagonalSettings">
+                              <div class="control-group inline">
+                                  <label>Width:</label><input type="number" data-line-setting="width" data-target-object="lineDiagonalSettings" min="0.1" step="0.1" value="${grid.lineDiagonalSettings.width}">
+                                  <label>Color:</label><input type="color" data-line-setting="color" data-target-object="lineDiagonalSettings" value="${grid.lineDiagonalSettings.color}">
+                                  <input type="checkbox" id="lineDiagUseAlt-${grid.id}" data-line-setting="useGridAltColors" data-target-object="lineDiagonalSettings">
+                                  <label for="lineDiagUseAlt-${grid.id}" class="label-normal">Use Grid Alt Colors</label>
+                              </div>
+                          </div>
+                         <!-- Snake -->
+                         <div class="control-group">
+                              <input type="checkbox" id="lineModeSnake-${grid.id}" data-line-mode-toggle="lineSnakeSettings">
+                              <label for="lineModeSnake-${grid.id}" class="toggle-label">Snake</label>
+                         </div>
+                         <div class="line-mode-params" data-line-param-for="lineSnakeSettings">
+                             <div class="control-group inline">
+                                 <label>Width:</label><input type="number" data-line-setting="width" data-target-object="lineSnakeSettings" min="0.1" step="0.1" value="${grid.lineSnakeSettings.width}">
+                                 <label>Color:</label><input type="color" data-line-setting="color" data-target-object="lineSnakeSettings" value="${grid.lineSnakeSettings.color}">
+                                 <input type="checkbox" id="lineSnakeUseAlt-${grid.id}" data-line-setting="useGridAltColors" data-target-object="lineSnakeSettings">
+                                 <label for="lineSnakeUseAlt-${grid.id}" class="label-normal">Use Grid Alt Colors</label>
+                              </div>
+                         </div>
+                         <!-- Random -->
+                         <div class="control-group">
+                              <input type="checkbox" id="lineModeRand-${grid.id}" data-line-mode-toggle="lineRandomSettings">
+                              <label for="lineModeRand-${grid.id}" class="toggle-label">Random</label>
+                          </div>
+                          <div class="line-mode-params" data-line-param-for="lineRandomSettings">
+                              <div class="control-group inline">
+                                  <label>Width:</label><input type="number" data-line-setting="width" data-target-object="lineRandomSettings" min="0.1" step="0.1" value="${grid.lineRandomSettings.width}">
+                                  <label>Color:</label><input type="color" data-line-setting="color" data-target-object="lineRandomSettings" value="${grid.lineRandomSettings.color}">
+                                  <input type="checkbox" id="lineRandUseAlt-${grid.id}" data-line-setting="useGridAltColors" data-target-object="lineRandomSettings">
+                                  <label for="lineRandUseAlt-${grid.id}" class="label-normal">Use Grid Alt Colors</label>
+                              </div>
+                               <div class="control-group inline">
+                                  <label>Count:</label><input type="number" data-line-setting="count" data-target-object="lineRandomSettings" min="0" step="1" value="${grid.lineRandomSettings.count}">
+                               </div>
+                              <div class="control-group line-random-options">
+                                   <label>Allowed Connections:</label><br>
+                                   <input type="checkbox" id="lineRandAllowCols-${grid.id}" data-line-setting="allowColumns" data-target-object="lineRandomSettings"><label for="lineRandAllowCols-${grid.id}" class="label-normal"> Columns</label>
+                                   <input type="checkbox" id="lineRandAllowRows-${grid.id}" data-line-setting="allowRows" data-target-object="lineRandomSettings"><label for="lineRandAllowRows-${grid.id}" class="label-normal"> Rows</label>
+                                   <input type="checkbox" id="lineRandAllowDiag-${grid.id}" data-line-setting="allowDiagonal" data-target-object="lineRandomSettings"><label for="lineRandAllowDiag-${grid.id}" class="label-normal"> Diagonal</label>
+                              </div>
+                          </div>
+                     </div>
+                 </div>
+
+                <!-- Standard Animations -->
+                <div class="animation-controls"><h4>Grid Standard Animation</h4><div class="control-group"><button class="grid-animation-toggle" data-id="${grid.id}">${grid.isAnimating?'Stop':'Start'} Grid Anim</button></div>
+                    <div class="animation-toggle-group"><input type="checkbox" id="animRotToggle-${grid.id}" data-anim-toggle="animRotation"><label for="animRotToggle-${grid.id}" class="toggle-label"> Rotation</label><div class="animation-params" data-anim-param-for="animRotation"><div class="control-group inline"><label>Speed:</label><input type="number" data-anim-param="speed" data-anim-target="animRotationParams" step="any" value="${grid.animRotationParams.speed}"></div></div></div>
+                    <div class="animation-toggle-group standard-spacing-anim-control"><input type="checkbox" id="animSpaceToggle-${grid.id}" data-anim-toggle="animSpacing"><label for="animSpaceToggle-${grid.id}" class="toggle-label"> Spacing</label><div class="animation-params" data-anim-param-for="animSpacing"><div class="control-group inline"><label>Low:</label><input type="number" data-anim-param="lower" data-anim-target="animSpacingParams" min="0.1" step="0.1" value="${grid.animSpacingParams.lower}"></div><div class="control-group inline"><label>Up:</label><input type="number" data-anim-param="upper" data-anim-target="animSpacingParams" min="0.1" step="0.1" value="${grid.animSpacingParams.upper}"></div><div class="control-group inline"><label>Time:</label><input type="number" data-anim-param="time" data-anim-target="animSpacingParams" min="0.1" step="0.1" value="${grid.animSpacingParams.time}"></div></div></div>
+                    <div class="animation-toggle-group"><input type="checkbox" id="animSizeToggle-${grid.id}" data-anim-toggle="animSize"><label for="animSizeToggle-${grid.id}" class="toggle-label"> Size</label><div class="animation-params" data-anim-param-for="animSize"><div class="control-group inline"><label>Low:</label><input type="number" data-anim-param="lower" data-anim-target="animSizeParams" min="0" step="0.1" value="${grid.animSizeParams.lower}"></div><div class="control-group inline"><label>Up:</label><input type="number" data-anim-param="upper" data-anim-target="animSizeParams" min="0" step="0.1" value="${grid.animSizeParams.upper}"></div><div class="control-group inline"><label>Time:</label><input type="number" data-anim-param="time" data-anim-target="animSizeParams" min="0.1" step="0.1" value="${grid.animSizeParams.time}"></div></div></div>
+                    <div class="animation-toggle-group"><input type="checkbox" id="animOffsetToggle-${grid.id}" data-anim-toggle="animOffset"><label for="animOffsetToggle-${grid.id}" class="toggle-label"> Offset</label><div class="animation-params" data-anim-param-for="animOffset"><div class="control-group inline"><label>Low:</label><input type="number" data-anim-param="lower" data-anim-target="animOffsetParams" step="1" value="${grid.animOffsetParams.lower}"></div><div class="control-group inline"><label>Up:</label><input type="number" data-anim-param="upper" data-anim-target="animOffsetParams" step="1" value="${grid.animOffsetParams.upper}"></div><div class="control-group inline"><label>Time:</label><input type="number" data-anim-param="time" data-anim-target="animOffsetParams" min="0.1" step="0.1" value="${grid.animOffsetParams.time}"></div></div></div>
+                    <div class="animation-toggle-group"><input type="checkbox" id="animCountToggle-${grid.id}" data-anim-toggle="animCount"><label for="animCountToggle-${grid.id}" class="toggle-label"> Dots Count</label><div class="animation-params anim-count-params" data-anim-param-for="animCount"><label>LowX:</label><input type="number" data-anim-param="lowerX" data-anim-target="animCountParams" min="1" step="1" value="${grid.animCountParams.lowerX}"><label>UpX:</label><input type="number" data-anim-param="upperX" data-anim-target="animCountParams" min="1" step="1" value="${grid.animCountParams.upperX}"><label>LowY:</label><input type="number" data-anim-param="lowerY" data-anim-target="animCountParams" min="1" step="1" value="${grid.animCountParams.lowerY}"><label>UpY:</label><input type="number" data-anim-param="upperY" data-anim-target="animCountParams" min="1" step="1" value="${grid.animCountParams.upperY}"><label class="time-label">Time:</label><input type="number" class="time-input" data-anim-param="time" data-anim-target="animCountParams" min="0.1" step="0.1" value="${grid.animCountParams.time}"></div></div>
+                 </div>`;
+
+            gridControlsContainer.appendChild(section);
+
+            // --- Set Initial UI States (including new line controls) ---
+            const currentGridId = grid.id;
+            const gridRef = grids.find(g => g.id === currentGridId);
+            if (!gridRef) { console.error(`Could not find grid ${currentGridId} after adding.`); return; }
+
+            // Set Select values
+            section.querySelector(`#altColorType-${currentGridId}`).value = gridRef.alternatingType;
+            section.querySelector(`[data-property="zigZagAxis"]`).value = gridRef.zigZagAxis;
+            section.querySelector(`[data-property="altScaleAxis"]`).value = gridRef.altScaleAxis;
+            section.querySelector(`[data-property="waveAxis"]`).value = gridRef.waveAxis;
+            section.querySelector(`[data-property="waveDirectionAxis"]`).value = gridRef.waveDirectionAxis;
+
+            // Set Checkbox states (Existing)
+            section.querySelector(`[data-spacing-mode-toggle="useGradientSpacing"]`).checked = gridRef.useGradientSpacing;
+            section.querySelector(`[data-spacing-mode-toggle="useRandomSpacing"]`).checked = gridRef.useRandomSpacing;
+            section.querySelector(`[data-spacing-mode-toggle="useZigZagSpacing"]`).checked = gridRef.useZigZagSpacing;
+            section.querySelector(`[data-spacing-mode-toggle="useAltScaleSpacing"]`).checked = gridRef.useAltScaleSpacing;
+            section.querySelector(`[data-spacing-mode-toggle="useWaveSpacing"]`).checked = gridRef.useWaveSpacing;
+            section.querySelectorAll('[data-anim-toggle]').forEach(el => {
+                const toggleName = el.dataset.animToggle;
+                if (toggleName && gridRef.hasOwnProperty(toggleName)) {
+                    el.checked = gridRef[toggleName];
+                }
+            });
+
+             // Set Checkbox states (NEW Lines)
+             section.querySelector(`#useLines-${currentGridId}`).checked = gridRef.useLines;
+             section.querySelector(`#lineModeCols-${currentGridId}`).checked = gridRef.lineColumnsSettings.enabled;
+             section.querySelector(`#lineModeRows-${currentGridId}`).checked = gridRef.lineRowsSettings.enabled;
+             section.querySelector(`#lineModeDiag-${currentGridId}`).checked = gridRef.lineDiagonalSettings.enabled;
+             section.querySelector(`#lineModeSnake-${currentGridId}`).checked = gridRef.lineSnakeSettings.enabled;
+             section.querySelector(`#lineModeRand-${currentGridId}`).checked = gridRef.lineRandomSettings.enabled;
+             section.querySelector(`#lineColsUseAlt-${currentGridId}`).checked = gridRef.lineColumnsSettings.useGridAltColors;
+             section.querySelector(`#lineRowsUseAlt-${currentGridId}`).checked = gridRef.lineRowsSettings.useGridAltColors;
+             section.querySelector(`#lineDiagUseAlt-${currentGridId}`).checked = gridRef.lineDiagonalSettings.useGridAltColors;
+             section.querySelector(`#lineSnakeUseAlt-${currentGridId}`).checked = gridRef.lineSnakeSettings.useGridAltColors;
+             section.querySelector(`#lineRandUseAlt-${currentGridId}`).checked = gridRef.lineRandomSettings.useGridAltColors;
+             section.querySelector(`#lineRandAllowCols-${currentGridId}`).checked = gridRef.lineRandomSettings.allowColumns;
+             section.querySelector(`#lineRandAllowRows-${currentGridId}`).checked = gridRef.lineRandomSettings.allowRows;
+             section.querySelector(`#lineRandAllowDiag-${currentGridId}`).checked = gridRef.lineRandomSettings.allowDiagonal;
+
+
+             // Set Initial Visibility based on state
+            updateSpacingControlsVisibility(currentGridId);
+            section.querySelectorAll('.animation-params').forEach(el => {
+                const toggleName = el.dataset.animParamFor;
+                if (toggleName && gridRef.hasOwnProperty(toggleName)) {
+                    el.classList.toggle('visible', !!gridRef[toggleName]);
+                }
+            });
+            section.querySelector('.radial-color-param')?.classList.toggle('hidden', gridRef.alternatingType !== 'radial');
+
+            // Set Initial Visibility (NEW Lines)
+            section.querySelector('.line-modes-container').classList.toggle('hidden', !gridRef.useLines);
+            section.querySelectorAll('.line-mode-params').forEach(el => {
+                 const toggleName = el.dataset.lineParamFor; // e.g., "lineColumnsSettings"
+                 if (toggleName && gridRef.hasOwnProperty(toggleName)) {
+                     el.classList.toggle('visible', !!gridRef[toggleName].enabled);
+                 }
+            });
+
+
+            updateAlternatingColorListUI(gridRef); // Populate color list
+            updateGlobalSpecialAnimUI();
+        }
+
+        function updateGridUICounter(gridId){const g=grids.find(gr=>gr.id===gridId);const el=document.getElementById(`grid-${gridId}`);if(g&&el){const c=el.querySelector('.gridDotCount');if(c)c.textContent=`(Dots: ${formatNumberWithCommas(g.dotCount)})`;}}
+        function updateGridUIValue(gridId,property,value){const el=document.getElementById(`grid-${gridId}`);if(el){const ins=el.querySelectorAll(`[data-property='${property}']`);ins.forEach(inp=>{const nv=parseFloat(value);if((inp.type==='range'||inp.type==='number')&&document.activeElement!==inp){const s=inp.step||"1";const dec=s.includes('.')?s.split('.')[1].length:(s==='any'?2:0);const fv=!isNaN(nv)?nv.toFixed(dec):'';inp.value=fv;}else if(inp.type==='color'&&document.activeElement!==inp){inp.value=value;}else if(inp.matches('select')){inp.value = value;}else if(inp.type === 'checkbox'){inp.checked = value;}});}} // Added checkbox handling
+        function updateGlobalSpecialAnimUI() {
+            globalRandomAppearToggle.checked=globalRandomAppearActive;
+            globalRandomAppearParamsEl.classList.toggle('visible',globalRandomAppearActive);
+            globalExplodeToggle.checked=globalExplodeActive;
+            globalExplodeParamsEl.classList.toggle('visible',globalExplodeActive);
+            globalImplodeToggle.checked=globalImplodeActive; // NEW
+            globalImplodeParamsEl.classList.toggle('visible',globalImplodeActive); // NEW
+
+            const disableGridAnims=globalRandomAppearActive||globalExplodeActive||globalImplodeActive; // NEW: Add Implode
+            gridControlsContainer.querySelectorAll('.animation-controls input[type=checkbox], .animation-controls button.grid-animation-toggle').forEach(el=>el.disabled=disableGridAnims);
+            gridControlsContainer.querySelectorAll('.animation-controls label.toggle-label').forEach(el=>el.classList.toggle('disabled',disableGridAnims));
+            // Disable other special animation toggles if one is active
+            globalRandomAppearToggle.disabled = globalExplodeActive || globalImplodeActive;
+            globalExplodeToggle.disabled = globalRandomAppearActive || globalImplodeActive;
+            globalImplodeToggle.disabled = globalRandomAppearActive || globalExplodeActive;
+            // Also disable parameter inputs for inactive special animations
+            globalRandomAppearParamsEl.querySelectorAll('input').forEach(el => el.disabled = !globalRandomAppearActive);
+            globalExplodeParamsEl.querySelectorAll('input').forEach(el => el.disabled = !globalExplodeActive);
+            globalImplodeParamsEl.querySelectorAll('input').forEach(el => el.disabled = !globalImplodeActive);
+        }
+        function updateSpacingControlsVisibility(gridId) {const grid=grids.find(g=>g.id===gridId);const s=document.getElementById(`grid-${gridId}`);if(!grid||!s)return; s.querySelector('.gradient-spacing-params')?.classList.toggle('visible',grid.useGradientSpacing); s.querySelector('.random-spacing-params')?.classList.toggle('visible',grid.useRandomSpacing); s.querySelector('.zigzag-spacing-params')?.classList.toggle('visible',grid.useZigZagSpacing); s.querySelector('.altscale-spacing-params')?.classList.toggle('visible',grid.useAltScaleSpacing); s.querySelector('.wave-spacing-params')?.classList.toggle('visible',grid.useWaveSpacing); const useCustom=grid.useGradientSpacing||grid.useRandomSpacing||grid.useZigZagSpacing||grid.useAltScaleSpacing||grid.useWaveSpacing; s.querySelector('.standard-spacing-control')?.classList.toggle('hidden',useCustom); s.querySelector('.standard-spacing-anim-control')?.classList.toggle('hidden',useCustom); }
+
+        function updateColorBreakdownUI() {
+             colorBreakdownListEl.innerHTML = '';
+             // Separate dots and lines
+             const dotCounts = {};
+             const lineCounts = {};
+             Object.entries(globalColorCounts).forEach(([key, count]) => {
+                 if (key.startsWith('dot_')) {
+                     dotCounts[key.substring(4)] = count;
+                 } else if (key.startsWith('line_')) {
+                     lineCounts[key.substring(5)] = count;
+                 }
+             });
+
+             const sortedDotColors = Object.entries(dotCounts).sort(([,a],[,b]) => b-a);
+             const sortedLineColors = Object.entries(lineCounts).sort(([,a],[,b]) => b-a);
+
+             if (sortedDotColors.length > 0) {
+                 const li = document.createElement('li');
+                 li.innerHTML = "<strong>Dots:</strong>";
+                 colorBreakdownListEl.appendChild(li);
+                 sortedDotColors.forEach(([hex, count]) => {
+                     const li = document.createElement('li');
+                     li.innerHTML = `<span style="background-color:${hex};"></span> ${hex}: ${formatNumberWithCommas(count)}`;
+                     colorBreakdownListEl.appendChild(li);
+                 });
+             }
+             if (sortedLineColors.length > 0) {
+                  const li = document.createElement('li');
+                  li.innerHTML = "<strong>Lines:</strong>";
+                  colorBreakdownListEl.appendChild(li);
+                  sortedLineColors.forEach(([hex, count]) => {
+                     const li = document.createElement('li');
+                     // Use border instead of background for lines
+                     li.innerHTML = `<span style="border: 2px solid ${hex}; width: 14px; height: 8px;"></span> ${hex}: ${formatNumberWithCommas(count)}`;
+                     colorBreakdownListEl.appendChild(li);
+                  });
+             }
+         }
+
+        // --- Alternating Colors & Drag/Drop ---
+        function addAlternatingColor(gridId,insertAfterIndex=-1,hexValue=null){const g=grids.find(gr=>gr.id===gridId);if(!g)return;const nid=nextAltColorId++;let ctu=hexValue;if(!ctu){ctu=g.alternatingColors.length>0?g.alternatingColors[g.alternatingColors.length-1].hex:g.color;}const nc={id:nid,hex:ctu,count:1};if(insertAfterIndex>-1&&insertAfterIndex<g.alternatingColors.length){g.alternatingColors.splice(insertAfterIndex+1,0,nc);}else{g.alternatingColors.push(nc);} distributeRemainingColorCounts(gridId, -1); updateAlternatingColorListUI(g); if(!isAnimatingGlobal&&!isGloballyPaused)draw();}
+        function removeAlternatingColor(gridId,colorId){const g=grids.find(gr=>gr.id===gridId);if(!g)return;const rIdx=g.alternatingColors.findIndex(c=>c.id===colorId);if(rIdx===-1)return;g.alternatingColors=g.alternatingColors.filter(c=>c.id!==colorId);if(rIdx===0&&g.alternatingType!=='none'&&g.alternatingColors.length>0){g.color=g.alternatingColors[0].hex;updateGridUIValue(gridId,'color',g.color);} distributeRemainingColorCounts(gridId, -1); updateAlternatingColorListUI(g); if(!isAnimatingGlobal&&!isGloballyPaused)draw();}
+        function updateAlternatingColor(gridId,colorId,newHex){const g=grids.find(gr=>gr.id===gridId);const cIdx=g?.alternatingColors.findIndex(c=>c.id===colorId);if(g&&cIdx!==-1){g.alternatingColors[cIdx].hex=newHex;const li=document.getElementById(`altColor-${gridId}-${colorId}`);if(li){li.querySelector('span').textContent=newHex.toUpperCase();}if(cIdx===0&&g.alternatingType!=='none'){g.color=newHex;updateGridUIValue(gridId,'color',newHex);}generateShuffledColorPool(g);if(!isAnimatingGlobal&&!isGloballyPaused)draw();}}
+        function updateAlternatingColorCount(gridId, colorId, newCount) { const grid = grids.find(g => g.id === gridId); if (!grid) return; const color = grid.alternatingColors.find(c => c.id === colorId); const totalDots = Math.round(grid.currentDotsCountX) * Math.round(grid.currentDotsCountY); if (color) { color.count = Math.max(0, Math.min(totalDots, parseInt(newCount) || 0)); } distributeRemainingColorCounts(gridId, colorId); updateAlternatingColorListUI(grid); generateShuffledColorPool(grid); if (!isAnimatingGlobal && !isGloballyPaused) draw(); }
+        function distributeRemainingColorCounts(gridId, changedColorId) { const grid = grids.find(g => g.id === gridId); if (!grid || grid.alternatingColors.length === 0) return; const totalDots = Math.round(grid.currentDotsCountX) * Math.round(grid.currentDotsCountY); let assignedCount = 0; let othersTotalPrevCount = 0; let others = []; grid.alternatingColors.forEach(c => { if (c.id === changedColorId) { assignedCount += c.count; } else { others.push(c); othersTotalPrevCount += c.count || 0; } }); const remainingDots = totalDots - assignedCount; if (remainingDots < 0) { /*console.warn("Assigned count exceeds total dots, resetting others");*/ others.forEach(c => c.count = 0); return; } if (others.length === 0) return; let distributedTotal = 0; if (othersTotalPrevCount > 0) { others.forEach(c => { const proportion = (c.count || 0) / othersTotalPrevCount; const newCount = Math.round(proportion * remainingDots); c.count = newCount; distributedTotal += newCount; }); } else { const evenShare = Math.floor(remainingDots / others.length); others.forEach(c => { c.count = evenShare; distributedTotal += evenShare; }); } let diff = remainingDots - distributedTotal; others.sort((a, b) => (b.count || 0) - (a.count || 0)); let adjustIdx = 0; while(Math.abs(diff) > 0 && adjustIdx < others.length * 2) { // Limit loops
+            const currentOtherIdx = adjustIdx % others.length;
+            const adjustment = Math.sign(diff);
+            if (others[currentOtherIdx].count + adjustment >= 0) { others[currentOtherIdx].count += adjustment; diff -= adjustment; }
+            adjustIdx++;
+        } }
+        function updateAlternatingColorListUI(grid){const listEl=document.getElementById(`colorList-${grid.id}`);if(!listEl)return;const showCounts=(grid.alternatingType==='random');listEl.innerHTML='';grid.alternatingColors.forEach((c,i)=>{const li=document.createElement('li');li.id=`altColor-${grid.id}-${c.id}`;li.dataset.colorId=c.id;li.draggable=true;li.innerHTML=`<input type="color" value="${c.hex}" data-color-id="${c.id}"><span>${c.hex.toUpperCase()}</span> ${showCounts?`<input type="number" class="color-count-input" value="${c.count||1}" min="0" step="1" data-color-id="${c.id}" title="Dot Count">`:''}<button class="insert-color-btn" data-color-id="${c.id}" title="Duplicate Below">+</button><button class="remove-color-btn" data-color-id="${c.id}" title="Remove">&times;</button>${i===0?'<small style="margin-left:5px;color:#555;">(Main)</small>':''}`;listEl.appendChild(li);li.querySelector('input[type=color]').addEventListener('input',(e)=>updateAlternatingColor(grid.id,c.id,e.target.value)); const countInput = li.querySelector('.color-count-input'); if(countInput) { countInput.addEventListener('change', (e) => updateAlternatingColorCount(grid.id, c.id, e.target.value)); } });}
+        function generateShuffledColorPool(grid) { grid.shuffledColorPool = []; const totalDots = Math.round(grid.currentDotsCountX) * Math.round(grid.currentDotsCountY); if (totalDots <= 0 || grid.alternatingColors.length === 0) return; let pool = []; grid.alternatingColors.forEach(c => { const numToAdd = c.count || 0; for (let i = 0; i < numToAdd; i++) { pool.push(c.hex); } }); let fillIdx = 0; while (pool.length < totalDots && grid.alternatingColors.length > 0) { pool.push(grid.alternatingColors[fillIdx % grid.alternatingColors.length].hex); fillIdx++; } shuffleArray(pool); grid.shuffledColorPool = pool.slice(0, totalDots); /* console.log(`Generated pool for ${grid.id}, size: ${grid.shuffledColorPool.length}`); */ }
+        function handleDragStart(e){const t=e.target.closest('li');if(!t||!t.dataset.colorId)return;draggedColorId=parseInt(t.dataset.colorId);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',draggedColorId);t.classList.add('dragging');}
+        function handleDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';const li=e.target.closest('li');const ul=e.target.closest('ul.color-list');if(!li||!ul||!draggedColorId)return;ul.querySelectorAll('li').forEach(l=>{l.classList.remove('drag-over-top','drag-over-bottom');});const rect=li.getBoundingClientRect();const mid=rect.top+rect.height/2;li.classList.add(e.clientY<mid?'drag-over-top':'drag-over-bottom');}
+        function handleDragLeave(e){const li=e.target.closest('li');if(li){li.classList.remove('drag-over-top','drag-over-bottom');}}
+        function handleDrop(e){e.preventDefault();const li=e.target.closest('li');const ul=e.target.closest('ul.color-list');if(!li||!ul||draggedColorId===null){cleanupDragClasses(ul);return;}const targetColorId=parseInt(li.dataset.colorId);const gridId=parseInt(ul.dataset.gridId);const grid=grids.find(g=>g.id===gridId);if(!grid||draggedColorId===targetColorId){cleanupDragClasses(ul);draggedColorId=null;return;}const draggedIdx=grid.alternatingColors.findIndex(c=>c.id===draggedColorId);const targetIdx=grid.alternatingColors.findIndex(c=>c.id===targetColorId);if(draggedIdx===-1||targetIdx===-1){cleanupDragClasses(ul);draggedColorId=null;return;}const[draggedItem]=grid.alternatingColors.splice(draggedIdx,1);const rect=li.getBoundingClientRect();const mid=rect.top+rect.height/2;let insertAt=grid.alternatingColors.findIndex(c=>c.id===targetColorId);if(e.clientY>=mid){insertAt+=1;}insertAt=Math.max(0,Math.min(grid.alternatingColors.length,insertAt));grid.alternatingColors.splice(insertAt,0,draggedItem);if(grid.alternatingType!=='none'&&grid.alternatingColors.length>0){if(grid.color!==grid.alternatingColors[0].hex){grid.color=grid.alternatingColors[0].hex;updateGridUIValue(gridId,'color',grid.color);}}generateShuffledColorPool(grid);updateAlternatingColorListUI(grid);if(!isAnimatingGlobal&&!isGloballyPaused)draw();draggedColorId=null;}
+        function handleDragEnd(e){const ul=e.target.closest('ul.color-list');cleanupDragClasses(ul);draggedColorId=null;}
+        function cleanupDragClasses(ul){if(ul){ul.querySelectorAll('li').forEach(li=>{li.classList.remove('dragging','drag-over-top','drag-over-bottom');});}}
+
+        // --- Event Listeners Setup ---
+        function setupEventListeners() {
+            window.addEventListener('resize', debounce(resizeCanvas, 100));
+            backgroundColorPicker.addEventListener('input',(e)=>{globalBackgroundColor=e.target.value;draw();});
+            exportSvgButton.addEventListener('click', exportSVG); exportJpgButton.addEventListener('click', exportJPG);
+            globalPauseButton.addEventListener('click', toggleGlobalPause); resetButton.addEventListener('click', doReset);
+            globalRandomAppearToggle.addEventListener('change', (e)=>{e.target.checked?activateGlobalRandomAppear():deactivateGlobalRandomAppear();});
+            globalExplodeToggle.addEventListener('change', (e)=>{e.target.checked?activateGlobalExplode():deactivateGlobalExplode();});
+            globalImplodeToggle.addEventListener('change', (e)=>{e.target.checked?activateGlobalImplode():deactivateGlobalImplode();}); // NEW
+            globalRandomAppearDurationInput.addEventListener('input', ()=>{globalRandomAppearDuration=parseFloat(globalRandomAppearDurationInput.value)||1.0;});
+            globalExplodeSpeedInput.addEventListener('input', ()=>{globalExplodeSpeedMultiplier=parseFloat(globalExplodeSpeedInput.value)||1.0;});
+            globalExplodeReturnSpeedInput.addEventListener('input', ()=>{globalExplodeReturnSpeedMultiplier=parseFloat(globalExplodeReturnSpeedInput.value)||1.0;});
+            globalImplodeDurationInput.addEventListener('input', ()=>{globalImplodeDuration=parseFloat(globalImplodeDurationInput.value)||1.5;}); // NEW
+            globalImplodeReverseDurationInput.addEventListener('input', ()=>{globalImplodeReverseDuration=parseFloat(globalImplodeReverseDurationInput.value)||1.5;}); // NEW
+            gridControlsContainer.addEventListener('input', handleGridControlInput);
+            gridControlsContainer.addEventListener('change', handleGridControlChange); // Use 'change' for selects, specific checkboxes
+            gridControlsContainer.addEventListener('click', handleGridButtonClick);
+            gridControlsContainer.addEventListener('dragstart', handleDragStart); gridControlsContainer.addEventListener('dragover', handleDragOver); gridControlsContainer.addEventListener('dragleave', handleDragLeave); gridControlsContainer.addEventListener('drop', handleDrop); gridControlsContainer.addEventListener('dragend', handleDragEnd);
+        }
+
+
+        // --- Input/Change/Button Handlers ---
+        function handleGridControlInput(event) { // Handles REAL-TIME updates: sliders, ranges, basic numbers, colors
+            const target = event.target;
+            const gridSection = target.closest('.grid-section');
+            if (!gridSection) return;
+            const gridId = parseInt(gridSection.id.split('-')[1]);
+            const grid = grids.find(g => g.id === gridId);
+            if (!grid) return;
+
+            const property = target.dataset?.property;
+            const animParam = target.dataset?.animParam;
+            const lineSetting = target.dataset?.lineSetting; // NEW: For line width, color etc.
+            const targetObjectKey = target.dataset?.targetObject; // NEW: e.g., "lineColumnsSettings"
+
+            let requiresRedraw = true;
+
+            // Exclude inputs handled by 'change' (selects, checkboxes, counts)
+             if (target.matches('select') || target.type === 'checkbox' || target.classList.contains('color-count-input') || target.dataset.spacingModeToggle || target.dataset.animToggle || target.dataset.lineModeToggle) {
+                 return;
+             }
+
+             if (property) { // Standard grid properties
+                 let valueSource = target.value;
+                 if (target.type === 'range' || target.type === 'number') {
+                     const isRange = target.type === 'range';
+                     const companionInput = gridSection.querySelector(`input[type=${isRange?'number':'range'}][data-property='${property}']`);
+                     const parsedValue = parseFloat(valueSource);
+                     if (!isNaN(parsedValue)) {
+                         let value = parsedValue;
+                          // Special case for dotSize - ensure >= 0
+                         if (property === 'dotSize') value = Math.max(0, value);
+
+                         if (grid.hasOwnProperty(property)) {
+                            grid[property] = value;
+                            // Update current value if not animating
+                             if (property === 'rotation' && !grid.animRotation) grid.currentRotation = value;
+                             else if (property === 'dotSize' && !grid.animSize) grid.currentDotSize = value;
+                             else if (property === 'dotSpacing' && !grid.animSpacing && !grid.useGradientSpacing && !grid.useRandomSpacing && !grid.useZigZagSpacing && !grid.useAltScaleSpacing && !grid.useWaveSpacing) grid.currentDotSpacing = value;
+                             else if (property === 'dotOffset' && !grid.animOffset) grid.currentDotOffset = value;
+                             else if (property === 'dotsCountX' && !grid.animCount) { grid.currentDotsCountX = Math.round(value); distributeRemainingColorCounts(gridId, -1); generateShuffledColorPool(grid); updateAlternatingColorListUI(grid); }
+                             else if (property === 'dotsCountY' && !grid.animCount) { grid.currentDotsCountY = Math.round(value); distributeRemainingColorCounts(gridId, -1); generateShuffledColorPool(grid); updateAlternatingColorListUI(grid); }
+                             else if (property === 'opacity') grid.opacity = value;
+                         }
+                         if (companionInput) { companionInput.value = value.toFixed(target.step?.includes('.') ? target.step.split('.')[1].length : 0); } // Update companion respecting step
+                     } else { requiresRedraw = false; }
+                 } else if (property === 'color') {
+                     grid.color = valueSource;
+                     if (grid.alternatingType !== 'none' && grid.alternatingColors.length > 0) {
+                         grid.alternatingColors[0].hex = valueSource;
+                         generateShuffledColorPool(grid);
+                         updateAlternatingColorListUI(grid);
+                     }
+                 }
+                 // Other non-numeric properties could be handled here if needed
+             } else if (animParam) { // Animation parameters
+                 const paramName = animParam;
+                 const targetParamObjectKey = target.dataset.animTarget;
+                 if (grid[targetParamObjectKey]) {
+                     let parsedValue = parseFloat(target.value);
+                     if (!isNaN(parsedValue)) {
+                         let needsCorrection = false;
+                         if (paramName.endsWith('Lower') || paramName === 'lower') {
+                             const uk = paramName.includes('X') ? 'upperX' : (paramName.includes('Y') ? 'upperY' : 'upper');
+                             if (grid[targetParamObjectKey].hasOwnProperty(uk)) { parsedValue = Math.min(parsedValue, grid[targetParamObjectKey][uk]); needsCorrection = (parsedValue !== parseFloat(target.value)); }
+                         } else if (paramName.endsWith('Upper') || paramName === 'upper') {
+                             const lk = paramName.includes('X') ? 'lowerX' : (paramName.includes('Y') ? 'lowerY' : 'lower');
+                             if (grid[targetParamObjectKey].hasOwnProperty(lk)) { parsedValue = Math.max(parsedValue, grid[targetParamObjectKey][lk]); needsCorrection = (parsedValue !== parseFloat(target.value)); }
+                         } else if (paramName === 'time') {
+                             parsedValue = Math.max(0.01, parsedValue); needsCorrection = (parsedValue !== parseFloat(target.value));
+                         } else if (paramName === 'lower' && targetParamObjectKey === 'animSizeParams') { // Ensure size >= 0
+                             parsedValue = Math.max(0, parsedValue); needsCorrection = (parsedValue !== parseFloat(target.value));
+                         } else if (paramName === 'upper' && targetParamObjectKey === 'animSizeParams') { // Ensure size >= 0
+                             parsedValue = Math.max(0, parsedValue); needsCorrection = (parsedValue !== parseFloat(target.value));
+                         }
+                         grid[targetParamObjectKey][paramName] = parsedValue;
+                         if (needsCorrection) { target.value = parsedValue; }
+                     } else { requiresRedraw = false; }
+                 }
+             } else if (lineSetting && targetObjectKey && grid[targetObjectKey]) { // NEW: Line Settings (Width, Color, Count)
+                 const settingName = lineSetting;
+                 const targetObject = grid[targetObjectKey];
+                 if (target.type === 'number') {
+                      let parsedValue = parseFloat(target.value);
+                      if (!isNaN(parsedValue)) {
+                         // Add validation if needed (e.g., width >= 0.1, count >= 0)
+                          if (settingName === 'width') parsedValue = Math.max(0.1, parsedValue);
+                          if (settingName === 'count') parsedValue = Math.max(0, parsedValue);
+                          targetObject[settingName] = parsedValue;
+                          target.value = parsedValue; // Correct if needed
+                      } else { requiresRedraw = false; }
+                 } else if (target.type === 'color') {
+                     targetObject[settingName] = target.value;
+                 }
+             }
+
+             if (requiresRedraw && !isAnimatingGlobal && !isGloballyPaused) {
+                 draw();
+             }
+         }
+
+         function handleGridControlChange(event) { // Handles DISCRETE updates: Selects, Checkboxes, Color Counts
+             const target = event.target;
+             const gridSection = target.closest('.grid-section');
+             if (!gridSection) return;
+             const gridId = parseInt(gridSection.id.split('-')[1]);
+             const grid = grids.find(g => g.id === gridId);
+             if (!grid) return;
+
+             const property = target.dataset?.property;
+             const animToggle = target.dataset?.animToggle;
+             const spacingModeToggle = target.dataset?.spacingModeToggle;
+             const lineModeToggle = target.dataset?.lineModeToggle; // NEW: Line mode enable/disable
+             const lineSetting = target.dataset?.lineSetting; // NEW: Line checkboxes (use alt color, random allows)
+             const targetObjectKey = target.dataset?.targetObject; // NEW: e.g., "lineColumnsSettings"
+
+             let requiresRedraw = true;
+
+             if (target.classList.contains('color-count-input')) {
+                 const colorId = parseInt(target.dataset.colorId);
+                 const count = parseInt(target.value);
+                 if (!isNaN(colorId) && !isNaN(count)) { updateAlternatingColorCount(gridId, colorId, count); }
+                 requiresRedraw = false; // updateAlternatingColorCount handles redraw
+             } else if (spacingModeToggle) {
+                 const isChecked = target.checked;
+                 const mode = spacingModeToggle;
+                 const otherModes = ['useGradientSpacing', 'useRandomSpacing', 'useZigZagSpacing', 'useAltScaleSpacing', 'useWaveSpacing'].filter(m => m !== mode);
+                 grid[mode] = isChecked;
+                 if (isChecked) { otherModes.forEach(om => { grid[om] = false; const toggle = gridSection.querySelector(`[data-spacing-mode-toggle='${om}']`); if (toggle) toggle.checked = false; }); }
+                 updateSpacingControlsVisibility(gridId);
+                 if (grid.useGradientSpacing || grid.useRandomSpacing || grid.useZigZagSpacing || grid.useAltScaleSpacing || grid.useWaveSpacing) {
+                     grid.animSpacing = false;
+                     const stdAnimToggle = gridSection.querySelector('[data-anim-toggle="animSpacing"]'); if (stdAnimToggle) stdAnimToggle.checked = false;
+                     const stdAnimParams = gridSection.querySelector('.animation-params[data-anim-param-for="animSpacing"]'); if (stdAnimParams) stdAnimParams.classList.remove('visible');
+                 }
+             } else if (property && target.matches('select') && grid.hasOwnProperty(property)) {
+                 grid[property] = target.value;
+                 if (property === 'alternatingType') { updateAlternatingColorListUI(grid); generateShuffledColorPool(grid); gridSection.querySelector('.radial-color-param')?.classList.toggle('hidden', target.value !== 'radial'); }
+             } else if (property && target.type === 'checkbox' && grid.hasOwnProperty(property)) { // Master Line Toggle
+                  grid[property] = target.checked;
+                  if (property === 'useLines') {
+                       gridSection.querySelector('.line-modes-container').classList.toggle('hidden', !target.checked);
+                  }
+            } else if (animToggle && target.type === 'checkbox') {
+                 if (globalRandomAppearActive || globalExplodeActive) { target.checked = false; return; }
+                 const isChecked = target.checked;
+                 grid[animToggle] = isChecked;
+                 const paramSection = gridSection.querySelector(`.animation-params[data-anim-param-for='${animToggle}']`);
+                 if (paramSection) { paramSection.classList.toggle('visible', isChecked); }
+                 if (!isChecked) { /* Reset logic... */ let baseValue; if (animToggle === 'animRotation') { baseValue = grid.rotation; grid.currentRotation = baseValue; } else if (animToggle === 'animSize') { baseValue = grid.dotSize; grid.currentDotSize = baseValue; } else if (animToggle === 'animSpacing') { baseValue = grid.dotSpacing; grid.currentDotSpacing = baseValue; } else if (animToggle === 'animOffset') { baseValue = grid.dotOffset; grid.currentDotOffset = baseValue; } else if (animToggle === 'animCount') { grid.currentDotsCountX = grid.dotsCountX; grid.currentDotsCountY = grid.dotsCountY; updateGridUIValue(gridId, 'dotsCountX', grid.dotsCountX); updateGridUIValue(gridId, 'dotsCountY', grid.dotsCountY); } if (animToggle !== 'animCount') { const baseProp = animToggle.replace('anim', '').charAt(0).toLowerCase() + animToggle.slice(5); if (grid.hasOwnProperty(baseProp)) { updateGridUIValue(gridId, baseProp, baseValue); } } }
+                 updateGlobalAnimationStatus();
+             } else if (lineModeToggle && target.type === 'checkbox') { // NEW: Line mode enable/disable
+                 const targetObject = grid[lineModeToggle];
+                 if(targetObject) {
+                     targetObject.enabled = target.checked;
+                     const paramSection = gridSection.querySelector(`.line-mode-params[data-line-param-for='${lineModeToggle}']`);
+                     if(paramSection) {
+                          paramSection.classList.toggle('visible', target.checked);
+                     }
+                 }
+             } else if (lineSetting && targetObjectKey && grid[targetObjectKey] && target.type === 'checkbox') { // NEW: Line setting checkboxes
+                  const settingName = lineSetting;
+                  const targetObject = grid[targetObjectKey];
+                  targetObject[settingName] = target.checked;
+             } else {
+                 requiresRedraw = false; // No relevant change found
+             }
+
+             if (requiresRedraw && !isAnimatingGlobal && !isGloballyPaused) {
+                 draw();
+             }
+         }
+
+        function handleGridButtonClick(event) { // Handles Buttons Only
+            // ... (Button logic remains the same, no changes needed here for lines) ...
+            const target = event.target; if (!target.matches('button')) return;
+            const gridSection = target.closest('.grid-section');
+            if (gridSection) {
+                const gridId = parseInt(gridSection.id.split('-')[1]); const grid = grids.find(g => g.id === gridId); if (!grid) return;
+                if (target.classList.contains('duplicate-grid-btn')) { duplicateGrid(gridId); }
+                else if (target.classList.contains('delete-grid-btn')) { deleteGrid(gridId); }
+                else if (target.classList.contains('add-color-btn')) { addAlternatingColor(gridId); }
+                else if (target.classList.contains('grid-animation-toggle')) {
+                    if (globalExplodeActive || globalRandomAppearActive) return;
+                    grid.isAnimating = !grid.isAnimating; target.textContent = grid.isAnimating ? 'Stop Grid Anim' : 'Start Grid Anim';
+                    if (!grid.isAnimating) { /* Reset... */ grid.currentRotation=grid.rotation; grid.currentDotSize=grid.dotSize; grid.currentDotSpacing=grid.dotSpacing; grid.currentDotOffset=grid.dotOffset; grid.currentDotsCountX=grid.dotsCountX; grid.currentDotsCountY=grid.dotsCountY; }
+                    updateGlobalAnimationStatus();
+                    if (!grid.isAnimating && !isGloballyPaused) { requestAnimationFrame(draw); }
+                }
+                else if (target.classList.contains('remove-color-btn')) { const cId = parseInt(target.dataset.colorId); if (!isNaN(cId)) { removeAlternatingColor(gridId, cId); } }
+                else if (target.classList.contains('insert-color-btn')) { const cId = parseInt(target.dataset.colorId); if (!isNaN(cId)) { const idx = grid.alternatingColors.findIndex(c => c.id === cId); if (idx !== -1) { addAlternatingColor(gridId, idx, grid.alternatingColors[idx].hex); } } }
+            }
+        }
+
+
+        // --- Export ---
+        function exportSVG() {
+            let svgElements = {}; // Group by color AND opacity: { "color_opacity": { color:"#...", opacity: N, circles: [], lines: [] } }
+
+            const addSvgElement = (type, data, color, opacity) => {
+                const key = `${color}_${opacity}`; // Use combined key
+                if (!svgElements[key]) {
+                    // Store color and opacity in the group data
+                    svgElements[key] = { color: color, opacity: opacity, circles: [], lines: [] };
+                }
+                // Opacity is now part of the key, no need to overwrite
+                if (type === 'circle') {
+                    svgElements[key].circles.push(data);
+                } else if (type === 'line') {
+                    svgElements[key].lines.push(data);
+                }
+            };
+
+            if (globalExplodeActive || globalRandomAppearActive || globalImplodeActive) { // Added Implode Check
+                // Simplified export for special animations (dots and potentially lines for implode)
+                 if (globalExplodeActive) { globalExplodeData.forEach(d=>{ const g=grids.find(grid=>grid.id===d.gridId);if(!g)return; const c=d.color, r=g.dotSize/2, o=g.opacity; addSvgElement('circle', {cx:d.currentX.toFixed(3),cy:d.currentY.toFixed(3),r:r.toFixed(3)}, c, o); }); }
+                 else if (globalRandomAppearActive) { globalRandomAppearDotPool.filter(p=>p.visible).forEach(pE=>{ const g=grids.find(gr=>gr.id===pE.gridId);if(!g)return; const cX=Math.round(g.currentDotsCountX),cY=Math.round(g.currentDotsCountY); const posD=calculateDotPositions(g,cX,cY,1);if(!posD)return; const{gridWidth,gridHeight,dotCoords,minX,minY}=posD; const pos=dotCoords[`${pE.i}-${pE.j}`];if(!pos)return; const sz=g.currentDotSize,off=g.currentDotOffset,rot=g.currentRotation; const r=Math.max(0, sz/2);const cOX=minX+gridWidth/2,cOY=minY+gridHeight/2; const rotRad=rot*Math.PI/180;const co=Math.cos(rotRad),si=Math.sin(rotRad); const gcx=centerX+off,gcy=centerY+off;const relX=pos.x-cOX,relY=pos.y-cOY; const rotX=relX*co-relY*si,rotY=relX*si+relY*co;const fx=gcx+rotX;const fy=gcy+rotY; const c=getDotColor(g,pE.i,pE.j,cX, pos.relX, pos.relY);const o=g.opacity; if(r>0) addSvgElement('circle', {cx:fx.toFixed(3),cy:fy.toFixed(3),r:r.toFixed(3)}, c, o); }); }
+                 else if (globalImplodeActive) { // Export for Implode
+                    // 1. Add Imploding Dots
+                    globalImplodeData.forEach(d => {
+                        const g = grids.find(grid => grid.id === d.gridId);
+                        if (!g) return;
+                        const r = g.dotSize / 2;
+                        const c = d.color;
+                        const o = g.opacity;
+                        if (r > 0) {
+                            addSvgElement('circle', { cx: d.currentX.toFixed(3), cy: d.currentY.toFixed(3), r: r.toFixed(3) }, c, o);
+                        }
+                    });
+                    // 2. Add Imploding Lines
+                    globalImplodeLineData.forEach(line => {
+                         const g = grids.find(grid => grid.id === line.gridId);
+                         if (!g) return;
+                         const c = line.color;
+                         const w = line.width;
+                         const o = g.opacity; // Use grid opacity for lines too
+                         addSvgElement('line', {
+                             x1: line.currentX1.toFixed(3), y1: line.currentY1.toFixed(3),
+                             x2: line.currentX2.toFixed(3), y2: line.currentY2.toFixed(3),
+                             width: w.toFixed(3)
+                         }, c, o);
+                    });
+                 }
+
+            } else {
+                 grids.forEach(grid => {
+                     const countX = Math.round(grid.currentDotsCountX);
+                     const countY = Math.round(grid.currentDotsCountY);
+                     const size = grid.currentDotSize;
+                     const offset = grid.currentDotOffset;
+                     const rotation = grid.currentRotation;
+                     const opacity = grid.opacity; // Use the grid's opacity
+
+                     if (countX <= 0 || countY <= 0) return;
+
+                     const positions = calculateDotPositions(grid, countX, countY, 1); // Use scale 1 for SVG coords
+                     if (!positions) return;
+                     const { gridWidth, gridHeight, dotCoords, minX, minY } = positions;
+
+                     const radius = Math.max(0, size / 2);
+                     const centerOffsetX = minX + gridWidth / 2;
+                     const centerOffsetY = minY + gridHeight / 2;
+                     const globalCenterX = centerX + offset;
+                     const globalCenterY = centerY + offset;
+                     const rotRad = rotation * Math.PI / 180;
+                     const cosR = Math.cos(rotRad);
+                     const sinR = Math.sin(rotRad);
+
+                      // Function to transform local grid point to global SVG point
+                     const transformPoint = (localX, localY) => {
+                         const centeredX = localX - centerOffsetX;
+                         const centeredY = localY - centerOffsetY;
+                         const rotatedX = centeredX * cosR - centeredY * sinR;
+                         const rotatedY = centeredX * sinR + centeredY * cosR;
+                         return {
+                             x: globalCenterX + rotatedX,
+                             y: globalCenterY + rotatedY
+                         };
+                     };
+
+                     // --- Add Dots ---
+                     if (radius > 0) {
+                         for (let i = 0; i < countX; i++) {
+                             for (let j = 0; j < countY; j++) {
+                                 const key = `${i}-${j}`;
+                                 const pos = dotCoords[key];
+                                 if (!pos) continue;
+                                 const globalPos = transformPoint(pos.x, pos.y);
+                                 const color = getDotColor(grid, i, j, countX, pos.relX, pos.relY);
+                                 addSvgElement('circle', {
+                                     cx: globalPos.x.toFixed(3),
+                                     cy: globalPos.y.toFixed(3),
+                                     r: radius.toFixed(3)
+                                 }, color, opacity); // Pass grid opacity
+                             }
+                         }
+                     }
+
+                    // --- Add Lines ---
+                    if (grid.useLines) {
+                        const addSvgLine = (p1, p2, settings, i, j) => {
+                             if (!p1 || !p2 || !settings || !settings.enabled || settings.width <= 0) return;
+
+                             const color = settings.useGridAltColors
+                                ? getDotColor(grid, i, j, countX, p1.relX ?? 0, p1.relY ?? 0) // Use starting dot
+                                : settings.color;
+                             const width = settings.width; // No scaling for SVG width
+
+                             const dx = p2.x - p1.x;
+                             const dy = p2.y - p1.y;
+                             const dist = Math.sqrt(dx * dx + dy * dy);
+                             // Adjust radius check for SVG export (allow lines even if radius is 0)
+                             if (radius > 0 && dist <= radius * 2) return;
+
+                             const nx = dx / dist;
+                             const ny = dy / dist;
+
+                             // Calculate adjusted points in LOCAL grid space
+                             const startLocalX = p1.x + nx * radius; // Still use radius for offset if > 0
+                             const startLocalY = p1.y + ny * radius;
+                             const endLocalX = p2.x - nx * radius;
+                             const endLocalY = p2.y - ny * radius;
+
+                             // Transform adjusted points to GLOBAL SVG space
+                             const startGlobal = transformPoint(startLocalX, startLocalY);
+                             const endGlobal = transformPoint(endLocalX, endLocalY);
+
+                             addSvgElement('line', {
+                                 x1: startGlobal.x.toFixed(3), y1: startGlobal.y.toFixed(3),
+                                 x2: endGlobal.x.toFixed(3), y2: endGlobal.y.toFixed(3),
+                                 width: width.toFixed(3)
+                             }, color, opacity); // Pass grid opacity
+                        };
+
+                        // --- Collect Line Segments for Each Mode (similar to drawing) ---
+                         if (grid.lineColumnsSettings.enabled) { for (let i=0; i<countX; i++) { for (let j=0; j<countY-1; j++) { addSvgLine(dotCoords[`${i}-${j}`], dotCoords[`${i}-${j+1}`], grid.lineColumnsSettings, i, j); } } }
+                         if (grid.lineRowsSettings.enabled) { for (let j=0; j<countY; j++) { for (let i=0; i<countX-1; i++) { addSvgLine(dotCoords[`${i}-${j}`], dotCoords[`${i+1}-${j}`], grid.lineRowsSettings, i, j); } } }
+                         if (grid.lineDiagonalSettings.enabled) { for (let i=0; i<countX-1; i++) { for (let j=0; j<countY-1; j++) { addSvgLine(dotCoords[`${i}-${j}`], dotCoords[`${i+1}-${j+1}`], grid.lineDiagonalSettings, i, j); addSvgLine(dotCoords[`${i+1}-${j}`], dotCoords[`${i}-${j+1}`], grid.lineDiagonalSettings, i+1, j); } } }
+                         if (grid.lineSnakeSettings.enabled) { for (let j=0; j<countY; j++) { if (j%2===0) { for (let i=0; i<countX-1; i++) { addSvgLine(dotCoords[`${i}-${j}`], dotCoords[`${i+1}-${j}`], grid.lineSnakeSettings, i, j); } if (j < countY - 1) { addSvgLine(dotCoords[`${countX-1}-${j}`], dotCoords[`${countX-1}-${j+1}`], grid.lineSnakeSettings, countX-1, j); } } else { for (let i=countX-1; i>0; i--) { addSvgLine(dotCoords[`${i}-${j}`], dotCoords[`${i-1}-${j}`], grid.lineSnakeSettings, i, j); } if (j < countY - 1) { addSvgLine(dotCoords[`0-${j}`], dotCoords[`0-${j+1}`], grid.lineSnakeSettings, 0, j); } } } }
+                         if (grid.lineRandomSettings.enabled && grid.lineRandomSettings.count > 0) { /* ... logic similar to drawing ... */
+                            const potentialPairs = []; const settings = grid.lineRandomSettings;
+                            for (let i = 0; i < countX; i++) { for (let j = 0; j < countY; j++) { if (settings.allowRows && i < countX - 1) { potentialPairs.push([`${i}-${j}`, `${i+1}-${j}`]); } if (settings.allowColumns && j < countY - 1) { potentialPairs.push([`${i}-${j}`, `${i}-${j+1}`]); } if (settings.allowDiagonal) { if (i < countX - 1 && j < countY - 1) { potentialPairs.push([`${i}-${j}`, `${i+1}-${j+1}`]); } if (i > 0 && j < countY - 1) { potentialPairs.push([`${i}-${j}`, `${i-1}-${j+1}`]); } } } }
+                            shuffleArray(potentialPairs); const numToDraw = Math.min(potentialPairs.length, settings.count);
+                            for(let k = 0; k < numToDraw; k++) { const p1Key = potentialPairs[k][0]; const p2Key = potentialPairs[k][1]; const p1Coords = dotCoords[p1Key]; const p2Coords = dotCoords[p2Key]; const [i1, j1] = p1Key.split('-').map(Number); addSvgLine(p1Coords, p2Coords, settings, i1, j1); }
+                         }
+                    } // end if (grid.useLines)
+                }); // end grids.forEach
+            } // end else (not special animation)
+
+
+            // --- Build SVG String ---
+             let svgString = `<svg width="${canvas.width}" height="${canvas.height}" xmlns="http://www.w3.org/2000/svg" style="background-color:${globalBackgroundColor};">`;
+             // Iterate through the values (groups) of the restructured svgElements
+             Object.entries(svgElements).forEach(([key, data]) => {
+                 // Use the stored color and opacity for this group
+                 const color = data.color;
+                 const opacity = data.opacity;
+
+                 // Create a separate group for CIRCLES of this color/opacity
+                 if (data.circles.length > 0) {
+                     const groupId = `dots_${color.replace('#','')}_${opacity}`.replace(/\./g, '-'); // Create a valid ID
+                     svgString += `<g id="${groupId}" fill="${color}" stroke="none" fill-opacity="${opacity}">`;
+                     data.circles.forEach(c => {
+                         svgString += `<circle cx="${c.cx}" cy="${c.cy}" r="${c.r}"/>`;
+                     });
+                     svgString += `</g>`;
+                 }
+
+                 // Create a separate group for LINES of this color/opacity
+                 if (data.lines.length > 0) {
+                      const groupId = `lines_${color.replace('#','')}_${opacity}`.replace(/\./g, '-'); // Create a valid ID
+                      svgString += `<g id="${groupId}" stroke="${color}" fill="none" stroke-opacity="${opacity}" stroke-linecap="round">`;
+                      data.lines.forEach(l => {
+                           svgString += `<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke-width="${l.width}"/>`;
+                      });
+                      svgString += `</g>`;
+                 }
+             });
+             svgString += `</svg>`;
+
+             downloadFile(svgString, 'dot-bot-export.svg', 'image/svg+xml');
+        }
+
+        function exportJPG() {
+            const targetWidth=6000;
+            const currentWidth = canvas.width || 1;
+            const currentHeight = canvas.height || 1;
+            const aspectRatio = currentHeight / currentWidth;
+            const targetHeight = Math.round(targetWidth * aspectRatio);
+            const scaleFactor = targetWidth / currentWidth;
+
+            const offscreenCanvas = document.createElement('canvas');
+            offscreenCanvas.width = targetWidth;
+            offscreenCanvas.height = targetHeight;
+            const offscreenCtx = offscreenCanvas.getContext('2d');
+
+            // Draw background
+            offscreenCtx.fillStyle = globalBackgroundColor;
+            offscreenCtx.fillRect(0, 0, targetWidth, targetHeight);
+
+            const scaledCenterX = targetWidth / 2;
+            const scaledCenterY = targetHeight / 2;
+
+            // Draw each grid onto the offscreen canvas with scaling
+             if (globalExplodeActive || globalRandomAppearActive) {
+                 // Special animations need specific handling if scaling is desired
+                 // For simplicity, let's draw them unscaled relative to original size, then scale the whole context
+                 // NOTE: This might not perfectly match the visual if element sizes matter
+                 offscreenCtx.save();
+                 offscreenCtx.scale(scaleFactor, scaleFactor);
+                 if (globalExplodeActive) { drawGlobalExplosion(offscreenCtx, 1); }
+                 else { drawGlobalRandomAppear(offscreenCtx, 1); }
+                 offscreenCtx.restore();
+
+             } else {
+                 grids.forEach(grid => {
+                     // Pass the target dimensions, target center, and scale factor
+                     drawStandardGrid(grid, offscreenCtx, targetWidth, targetHeight, scaledCenterX, scaledCenterY, scaleFactor);
+                 });
+             }
+
+            // Export
+            const dataUrl = offscreenCanvas.toDataURL('image/jpeg', 0.9);
+            downloadFile(dataUrl, 'dot-bot-export.jpg', 'image/jpeg');
+        }
+
+
+        // --- Utilities ---
+        function formatNumberWithCommas(num){try{return num.toLocaleString();}catch(e){return num;}}
+        function downloadFile(d,f,t){try{const b=t==='image/svg+xml'?new Blob([d],{type:t}):dataURLToBlob(d);if(!b)throw new Error("Blob fail");const u=URL.createObjectURL(b);if(!u)throw new Error("URL fail");const a=document.createElement('a');a.href=u;a.download=f;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u);}catch(e){console.error("Download fail:",e);alert(`Fail: ${e.message}`);}}
+        function dataURLToBlob(du){try{var a=du.split(','),m=a[0].match(/:(.*?);/)[1],bs=atob(a[1]),n=bs.length,u=new Uint8Array(n);while(n--){u[n]=bs.charCodeAt(n);}return new Blob([u],{type:m});}catch(e){console.error("DataURLToBlob fail:",e);return null;}}
+        function debounce(f,w){let t;return function(...a){const l=()=>{clearTimeout(t);f(...a);};clearTimeout(t);t=setTimeout(l,w);};}
+
+        // --- Start ---
+        init();
+    </script>
+</body>
+</html>
